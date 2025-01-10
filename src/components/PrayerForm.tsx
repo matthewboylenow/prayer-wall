@@ -73,6 +73,9 @@ export default function PrayerForm() {
                   className="h-16 w-auto mx-auto mb-4" // Slightly smaller for iPad
                 />
                 <h1 className="text-3xl text-blue-900 font-bold">Share Your Prayer</h1>
+                <p className="text-slate-600 mt-3 text-lg">
+                    Type your prayer below and press submit. It will be automatically added to our Prayer Wall.
+                </p>
               </div>
               <form onSubmit={handleSubmit} className="space-y-6">
                 <div className="relative">
