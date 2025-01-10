@@ -58,7 +58,7 @@ export default function PrayerForm() {
               <img
                 src="https://sainthelen.org/wp-content/uploads/2025/01/Saint-Helen-Logo-Submark-Vector-Black.png"
                 alt="Saint Helen Logo"
-                className="w-28 h-28 mx-auto mb-6" // Slightly smaller for iPad
+                className="h-16 w-auto mx-auto mb-6" // Slightly smaller for iPad
               />
               <div className="text-4xl mb-6">🙏</div>
               <h2 className="text-3xl font-bold mb-4 text-blue-900">Prayer Received</h2>
@@ -70,7 +70,7 @@ export default function PrayerForm() {
                 <img
                   src="https://sainthelen.org/wp-content/uploads/2025/01/Saint-Helen-Logo-Submark-Vector-Black.png"
                   alt="Saint Helen Logo"
-                  className="w-28 h-28 mx-auto mb-4" // Slightly smaller for iPad
+                  className="h-16 w-auto mx-auto mb-4" // Slightly smaller for iPad
                 />
                 <h1 className="text-3xl text-blue-900 font-bold">Share Your Prayer</h1>
               </div>
