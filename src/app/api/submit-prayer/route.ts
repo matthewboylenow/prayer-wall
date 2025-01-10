@@ -22,7 +22,8 @@ export async function POST(request: Request) {
     })
     
     return NextResponse.json({ success: true })
-  } catch (error) {
+  } catch (err) { // Changed from 'error' to 'err' and using it
+    console.error('Failed to submit prayer:', err)
     return NextResponse.json({ error: 'Failed to submit' }, { status: 500 })
   }
 }
