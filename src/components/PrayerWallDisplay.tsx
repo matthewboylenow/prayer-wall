@@ -1,6 +1,6 @@
 'use client'
-
 import React, { useState, useEffect } from 'react';
+import Image from 'next/image';
 
 interface Prayer {
   id: string;
@@ -42,8 +42,8 @@ export default function PrayerWallDisplay() {
         const instaResponse = await fetch('/api/instagram');
         const instaData = await instaResponse.json();
         setInstagramPosts(instaData);
-      } catch (error) {
-        console.error('Error fetching content:', error);
+      } catch (err) {
+        console.error('Error fetching content:', err);
       }
     };
 
@@ -52,7 +52,6 @@ export default function PrayerWallDisplay() {
     return () => clearInterval(interval);
   }, []);
 
-  // Toggle between prayers and Instagram posts
   useEffect(() => {
     const timer = setInterval(() => {
       setShowingPrayers(prev => !prev);
@@ -71,9 +70,11 @@ export default function PrayerWallDisplay() {
       }}
     >
       <header className="text-center py-8 bg-slate-800/50 backdrop-blur-sm border-b border-slate-700">
-        <img
+        <Image
           src="https://sainthelen.org/wp-content/uploads/2025/01/Saint-Helen-Logo-Submark-Vector-Black.png"
           alt="Saint Helen Logo"
+          width={400}
+          height={67}
           className="h-20 w-auto mx-auto mb-6 invert"
         />
         <h1 className="text-5xl font-bold text-white mb-2">
@@ -131,11 +132,13 @@ export default function PrayerWallDisplay() {
                 key={post.id} 
                 className="bg-slate-800/70 border border-slate-700 rounded-lg shadow-xl transform-gpu backdrop-blur-sm p-8"
               >
-                <img 
+                <Image 
                   src={post.mediaUrl} 
                   alt="Jubilee Celebration"
+                  width={800}
+                  height={600}
                   className="w-full h-64 object-cover rounded-lg mb-6"
-                  loading="eager"
+                  priority
                 />
                 <p className="text-2xl text-slate-100 mb-4 leading-relaxed">
                   {post.caption}

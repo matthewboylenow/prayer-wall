@@ -8,7 +8,8 @@ export async function GET() {
     const data = await response.json();
     
     return NextResponse.json(data);
-  } catch (error) {
+  } catch (err) { // Changed from 'error' to 'err'
+    console.error('Failed to fetch Instagram posts:', err);
     return NextResponse.json({ error: 'Failed to fetch Instagram posts' }, { status: 500 });
   }
 }
