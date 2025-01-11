@@ -8,22 +8,17 @@ interface Prayer {
   timestamp: string;
 }
 
-interface InstagramPost {
-  id: string;
-  caption: string;
-  mediaUrl: string;
-  timestamp: string;
-}
-
 export default function PrayerWallDisplay() {
   const [prayers, setPrayers] = useState<Prayer[]>([]);
-  const [instagramPosts, setInstagramPosts] = useState<InstagramPost[]>([]);
-  const [showingPrayers, setShowingPrayers] = useState(true);
+  const [isLoading, setIsLoading] = useState(true);
+  const [currentPage, setCurrentPage] = useState(0);
+  const prayersPerPage = 6;
   
+  // Fetch prayers
   useEffect(() => {
-    const fetchContent = async () => {
+    const fetchPrayers = async () => {
       try {
-        // Fetch prayers
+        setIsLoading(true);
         const rssResponse = await fetch('/api/rss');
         const rssData = await rssResponse.text();
         const parser = new DOMParser();
@@ -37,27 +32,54 @@ export default function PrayerWallDisplay() {
         }));
         
         setPrayers(prayerItems);
-
-        // Fetch Instagram posts
-        const instaResponse = await fetch('/api/instagram');
-        const instaData = await instaResponse.json();
-        setInstagramPosts(instaData);
       } catch (err) {
-        console.error('Error fetching content:', err);
+        console.error('Error fetching prayers:', err);
+      } finally {
+        setIsLoading(false);
       }
     };
 
-    fetchContent();
-    const interval = setInterval(fetchContent, 300000); // Refresh every 5 minutes
+    fetchPrayers();
+    const interval = setInterval(fetchPrayers, 30000);
     return () => clearInterval(interval);
   }, []);
 
+  // Page rotation
   useEffect(() => {
+    const totalPages = Math.ceil(prayers.length / prayersPerPage);
+    if (totalPages <= 1) return;
+
     const timer = setInterval(() => {
-      setShowingPrayers(prev => !prev);
-    }, 45000); // Switch every 45 seconds
+      setCurrentPage(prev => (prev + 1) % totalPages);
+    }, 10000); // Switch pages every 10 seconds
+
     return () => clearInterval(timer);
-  }, []);
+  }, [prayers.length]);
+
+  if (isLoading && prayers.length === 0) {
+    return (
+      <div className="min-h-screen bg-slate-900 flex items-center justify-center">
+        <div className="text-center">
+          <Image
+            src="https://sainthelen.org/wp-content/uploads/2022/01/Saint-Helen-New-Logo.png"
+            alt="Saint Helen Logo"
+            width={400}
+            height={67}
+            className="h-20 w-auto mx-auto mb-8"
+            priority
+          />
+          <div className="text-white text-2xl animate-pulse">
+            Loading prayers...
+          </div>
+        </div>
+      </div>
+    );
+  }
+
+  const currentPrayers = prayers.slice(
+    currentPage * prayersPerPage,
+    (currentPage + 1) * prayersPerPage
+  );
 
   return (
     <div 
@@ -69,87 +91,53 @@ export default function PrayerWallDisplay() {
         WebkitFontSmoothing: 'antialiased'
       }}
     >
-      <header className="text-center py-8 bg-slate-800/50 backdrop-blur-sm border-b border-slate-700">
+      <header className="text-center py-6 bg-slate-800/50 backdrop-blur-sm border-b border-slate-700">
         <Image
-          src="https://sainthelen.org/wp-content/uploads/2025/01/Saint-Helen-Logo-Submark-Vector-Black.png"
+          src="https://sainthelen.org/wp-content/uploads/2022/01/Saint-Helen-New-Logo.png"
           alt="Saint Helen Logo"
           width={400}
           height={67}
-          className="h-20 w-auto mx-auto mb-6 invert"
+          className="h-16 w-auto mx-auto mb-4"
+          priority
         />
-        <h1 className="text-5xl font-bold text-white mb-2">
-          {showingPrayers ? 'Community Prayer Wall' : 'Jubilee Celebrations'}
+        <h1 className="text-4xl font-bold text-white">
+          Community Prayer Wall
         </h1>
       </header>
 
       <div 
-        className={`transition-all duration-1000 ease-in-out absolute w-full ${
-          showingPrayers 
-            ? 'translate-x-0 opacity-100' 
-            : 'translate-x-full opacity-0'
-        }`}
-        style={{ willChange: 'transform, opacity' }}
+        className="p-6 max-w-4xl mx-auto relative" 
+        style={{ height: 'calc(100vh - 144px)' }}
       >
-        {showingPrayers && (
-          <div className="p-8 max-w-4xl mx-auto space-y-6">
-            {prayers.slice(0, 4).map((prayer) => (
-              <div 
-                key={prayer.id} 
-                className="bg-slate-800/70 border border-slate-700 rounded-lg shadow-xl transform-gpu backdrop-blur-sm p-8"
-              >
-                <div className="flex items-start gap-4">
-                  <span className="text-3xl">🙏</span>
-                  <div>
-                    <p className="text-2xl text-slate-100 mb-4 leading-relaxed">
-                      {prayer.content}
-                    </p>
-                    <p className="text-lg text-slate-400">
-                      {new Date(prayer.timestamp).toLocaleDateString('en-US', {
-                        month: 'long',
-                        day: 'numeric'
-                      })}
-                    </p>
-                  </div>
+        <div className="space-y-4 transition-opacity duration-1000 ease-in-out">
+          {currentPrayers.map((prayer, index) => (
+            <div 
+              key={`${prayer.id}-${currentPage}`}
+              className="bg-slate-800/70 border border-slate-700 rounded-lg shadow-xl backdrop-blur-sm p-6 opacity-0 animate-fadeIn"
+              style={{
+                animationDelay: `${index * 200}ms`,
+                animationFillMode: 'forwards'
+              }}
+            >
+              <div className="flex items-start gap-4">
+                <span className="text-2xl">🙏</span>
+                <div>
+                  <p className="text-xl text-slate-100 mb-3 leading-relaxed">
+                    {prayer.content}
+                  </p>
+                  <p className="text-sm text-slate-400">
+                    {new Date(prayer.timestamp).toLocaleDateString('en-US', {
+                      month: 'long',
+                      day: 'numeric',
+                      hour: 'numeric',
+                      minute: '2-digit'
+                    })}
+                  </p>
                 </div>
               </div>
-            ))}
-          </div>
-        )}
-      </div>
-
-      <div 
-        className={`transition-all duration-1000 ease-in-out absolute w-full ${
-          !showingPrayers 
-            ? 'translate-x-0 opacity-100' 
-            : '-translate-x-full opacity-0'
-        }`}
-        style={{ willChange: 'transform, opacity' }}
-      >
-        {!showingPrayers && (
-          <div className="p-8 max-w-4xl mx-auto space-y-8">
-            {instagramPosts.slice(0, 2).map((post) => (
-              <div 
-                key={post.id} 
-                className="bg-slate-800/70 border border-slate-700 rounded-lg shadow-xl transform-gpu backdrop-blur-sm p-8"
-              >
-                <Image 
-                  src={post.mediaUrl} 
-                  alt="Jubilee Celebration"
-                  width={800}
-                  height={600}
-                  className="w-full h-64 object-cover rounded-lg mb-6"
-                  priority
-                />
-                <p className="text-2xl text-slate-100 mb-4 leading-relaxed">
-                  {post.caption}
-                </p>
-                <p className="text-xl text-blue-400">
-                  #SaintHelenJubilee
-                </p>
-              </div>
-            ))}
-          </div>
-        )}
+            </div>
+          ))}
+        </div>
       </div>
     </div>
   );

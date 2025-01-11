@@ -72,7 +72,8 @@ export default function PrayerForm() {
                 alt="Saint Helen Logo"
                 width={400}
                 height={67}
-                className="w-auto h-16 mx-auto mb-4"
+                className="w-auto h-16 mx-auto mb-6"
+                priority
               />
               <h1 className="text-3xl text-blue-900 font-bold">Share Your Prayer</h1>
             </div>
