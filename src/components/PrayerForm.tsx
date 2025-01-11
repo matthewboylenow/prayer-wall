@@ -54,7 +54,7 @@ export default function PrayerForm() {
         {showThanks ? (
           <div className="text-center">
             <Image
-              src="https://sainthelen.org/wp-content/uploads/2025/01/Saint-Helen-Logo-Submark-Vector-Black.png"
+              src="/images/Saint-Helen-Submark-Black.png"
               alt="Saint Helen Logo"
               width={400}
               height={67}
@@ -68,7 +68,7 @@ export default function PrayerForm() {
           <div className="w-full max-w-lg">
             <div className="text-center mb-8">
               <Image
-                src="https://sainthelen.org/wp-content/uploads/2025/01/Saint-Helen-Logo-Submark-Vector-Black.png"
+                src="/images/Saint-Helen-Submark-Black.png"
                 alt="Saint Helen Logo"
                 width={400}
                 height={67}

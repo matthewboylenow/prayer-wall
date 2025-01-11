@@ -61,7 +61,7 @@ export default function PrayerWallDisplay() {
       <div className="min-h-screen bg-slate-900 flex items-center justify-center">
         <div className="text-center">
           <Image
-            src="https://sainthelen.org/wp-content/uploads/2022/01/Saint-Helen-New-Logo.png"
+            src="/images/Saint-Helen-Submark-White.png"
             alt="Saint Helen Logo"
             width={400}
             height={67}
