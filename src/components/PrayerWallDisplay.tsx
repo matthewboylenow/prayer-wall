@@ -93,7 +93,7 @@ export default function PrayerWallDisplay() {
     >
       <header className="text-center py-6 bg-slate-800/50 backdrop-blur-sm border-b border-slate-700">
         <Image
-          src="https://sainthelen.org/wp-content/uploads/2022/01/Saint-Helen-New-Logo.png"
+          src="/images/Saint-Helen-Submark-White.png"
           alt="Saint Helen Logo"
           width={400}
           height={67}
