@@ -58,7 +58,7 @@ export default function PrayerWallDisplay() {
       <div className="min-h-screen bg-slate-900 flex items-center justify-center">
         <div className="text-center">
           <Image
-            src="/images/logo-light.png"
+            src="/images/Saint-Helen-Submark-White.png"
             alt="Saint Helen Logo"
             width={500}
             height={84}
@@ -106,7 +106,7 @@ export default function PrayerWallDisplay() {
     >
       <header className="text-center py-8 bg-slate-800/50 backdrop-blur-sm border-b border-slate-700">
         <Image
-          src="/images/logo-light.png"
+          src="/images/Saint-Helen-Submark-White.png"
           alt="Saint Helen Logo"
           width={500}
           height={84}
