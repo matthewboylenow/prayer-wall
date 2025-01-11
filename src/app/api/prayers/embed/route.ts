@@ -26,7 +26,8 @@ export async function GET() {
         'Cache-Control': 's-maxage=30'
       }
     })
-  } catch (err) {
+  } catch (error) {
+    console.error('Failed to fetch prayers:', error);
     return NextResponse.json({ error: 'Failed to fetch prayers' }, { status: 500 })
   }
 }
