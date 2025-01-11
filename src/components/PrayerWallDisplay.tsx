@@ -14,7 +14,6 @@ export default function PrayerWallDisplay() {
   const [currentPage, setCurrentPage] = useState(0);
   const prayersPerPage = 6;
   
-  // Fetch prayers
   useEffect(() => {
     const fetchPrayers = async () => {
       try {
@@ -44,14 +43,13 @@ export default function PrayerWallDisplay() {
     return () => clearInterval(interval);
   }, []);
 
-  // Page rotation
+  // Page rotation including instruction page
   useEffect(() => {
-    const totalPages = Math.ceil(prayers.length / prayersPerPage);
-    if (totalPages <= 1) return;
-
+    const totalPages = Math.ceil(prayers.length / prayersPerPage) + 1; // +1 for instruction page
+    
     const timer = setInterval(() => {
       setCurrentPage(prev => (prev + 1) % totalPages);
-    }, 10000); // Switch pages every 10 seconds
+    }, 12000); // 12 seconds per page
 
     return () => clearInterval(timer);
   }, [prayers.length]);
@@ -61,7 +59,7 @@ export default function PrayerWallDisplay() {
       <div className="min-h-screen bg-slate-900 flex items-center justify-center">
         <div className="text-center">
           <Image
-            src="/images/Saint-Helen-Submark-White.png"
+            src="/images/logo-light.png"
             alt="Saint Helen Logo"
             width={400}
             height={67}
@@ -76,9 +74,26 @@ export default function PrayerWallDisplay() {
     );
   }
 
-  const currentPrayers = prayers.slice(
-    currentPage * prayersPerPage,
-    (currentPage + 1) * prayersPerPage
+  // Instruction page component
+  const InstructionPage = () => (
+    <div className="flex flex-col items-center justify-center h-full text-center px-8 animate-fadeIn">
+      <div className="bg-slate-800/70 border border-slate-700 rounded-lg shadow-xl backdrop-blur-sm p-8 max-w-2xl">
+        <h2 className="text-3xl font-bold text-white mb-8">Submit Your Prayer Intention</h2>
+        <div className="space-y-6 text-xl text-slate-100">
+          <p className="mb-6">
+            Use the iPad to submit your prayer intention
+          </p>
+          <p className="text-blue-400">
+            - or -
+          </p>
+          <p>
+            Visit <span className="text-blue-400 font-semibold">prayerwall.sainthelen.org</span><br />
+            on your mobile device
+          </p>
+          <div className="text-6xl mt-8">🙏</div>
+        </div>
+      </div>
+    </div>
   );
 
   return (
@@ -93,7 +108,7 @@ export default function PrayerWallDisplay() {
     >
       <header className="text-center py-6 bg-slate-800/50 backdrop-blur-sm border-b border-slate-700">
         <Image
-          src="/images/Saint-Helen-Submark-White.png"
+          src="/images/logo-light.png"
           alt="Saint Helen Logo"
           width={400}
           height={67}
@@ -109,35 +124,44 @@ export default function PrayerWallDisplay() {
         className="p-6 max-w-4xl mx-auto relative" 
         style={{ height: 'calc(100vh - 144px)' }}
       >
-        <div className="space-y-4 transition-opacity duration-1000 ease-in-out">
-          {currentPrayers.map((prayer, index) => (
-            <div 
-              key={`${prayer.id}-${currentPage}`}
-              className="bg-slate-800/70 border border-slate-700 rounded-lg shadow-xl backdrop-blur-sm p-6 opacity-0 animate-fadeIn"
-              style={{
-                animationDelay: `${index * 200}ms`,
-                animationFillMode: 'forwards'
-              }}
-            >
-              <div className="flex items-start gap-4">
-                <span className="text-2xl">🙏</span>
-                <div>
-                  <p className="text-xl text-slate-100 mb-3 leading-relaxed">
-                    {prayer.content}
-                  </p>
-                  <p className="text-sm text-slate-400">
-                    {new Date(prayer.timestamp).toLocaleDateString('en-US', {
-                      month: 'long',
-                      day: 'numeric',
-                      hour: 'numeric',
-                      minute: '2-digit'
-                    })}
-                  </p>
+        {currentPage === Math.ceil(prayers.length / prayersPerPage) ? (
+          <InstructionPage />
+        ) : (
+          <div className="space-y-4 transition-opacity duration-1000 ease-in-out">
+            {prayers
+              .slice(
+                currentPage * prayersPerPage,
+                (currentPage + 1) * prayersPerPage
+              )
+              .map((prayer, index) => (
+                <div 
+                  key={`${prayer.id}-${currentPage}`}
+                  className="bg-slate-800/70 border border-slate-700 rounded-lg shadow-xl backdrop-blur-sm p-6 opacity-0 animate-fadeIn"
+                  style={{
+                    animationDelay: `${index * 200}ms`,
+                    animationFillMode: 'forwards'
+                  }}
+                >
+                  <div className="flex items-start gap-4">
+                    <span className="text-2xl">🙏</span>
+                    <div>
+                      <p className="text-xl text-slate-100 mb-3 leading-relaxed">
+                        {prayer.content}
+                      </p>
+                      <p className="text-sm text-slate-400">
+                        {new Date(prayer.timestamp).toLocaleDateString('en-US', {
+                          month: 'long',
+                          day: 'numeric',
+                          hour: 'numeric',
+                          minute: '2-digit'
+                        })}
+                      </p>
+                    </div>
+                  </div>
                 </div>
-              </div>
-            </div>
-          ))}
-        </div>
+              ))}
+          </div>
+        )}
       </div>
     </div>
   );
