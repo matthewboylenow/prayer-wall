@@ -115,7 +115,7 @@ export default function PrayerWallDisplay() {
             priority
           />
           <Image
-            src="/images/jubilee-logo.png"
+            src="/images/Jubilee-Logo.png"
             alt="Jubilee Logo"
             width={84}
             height={84}
