@@ -1,6 +1,16 @@
 import { google } from 'googleapis'
 import { NextResponse } from 'next/server'
 
+export async function OPTIONS() {
+  return new NextResponse(null, {
+    headers: {
+      'Access-Control-Allow-Origin': 'https://sainthelen.org',
+      'Access-Control-Allow-Methods': 'GET',
+      'Access-Control-Allow-Headers': 'Content-Type',
+    },
+  })
+}
+
 export async function GET() {
   const auth = new google.auth.GoogleAuth({
     credentials: JSON.parse(process.env.GOOGLE_CREDENTIALS!),
@@ -23,11 +33,20 @@ export async function GET() {
     return NextResponse.json(prayers, {
       headers: {
         'Access-Control-Allow-Origin': 'https://sainthelen.org',
+        'Access-Control-Allow-Methods': 'GET',
+        'Access-Control-Allow-Headers': 'Content-Type',
         'Cache-Control': 's-maxage=30'
       }
     })
   } catch (error) {
     console.error('Failed to fetch prayers:', error);
-    return NextResponse.json({ error: 'Failed to fetch prayers' }, { status: 500 })
+    return NextResponse.json({ error: 'Failed to fetch prayers' }, { 
+      status: 500,
+      headers: {
+        'Access-Control-Allow-Origin': 'https://sainthelen.org',
+        'Access-Control-Allow-Methods': 'GET',
+        'Access-Control-Allow-Headers': 'Content-Type'
+      }
+    })
   }
 }
