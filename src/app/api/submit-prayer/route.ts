@@ -1,17 +1,18 @@
-import { google } from 'googleapis'
 import { NextResponse } from 'next/server'
-
-const auth = new google.auth.GoogleAuth({
-  credentials: JSON.parse(process.env.GOOGLE_CREDENTIALS!),
-  scopes: ['https://www.googleapis.com/auth/spreadsheets']
-})
+import { google } from 'googleapis'
+import { supabase } from '@/lib/supabase'
 
 export async function POST(request: Request) {
-  const { prayer } = await request.json()
-  
-  const sheets = google.sheets({ version: 'v4', auth })
-  
   try {
+    const { prayer } = await request.json()
+    
+    // First, save to Google Sheets (keeping existing functionality)
+    const auth = new google.auth.GoogleAuth({
+      credentials: JSON.parse(process.env.GOOGLE_CREDENTIALS!),
+      scopes: ['https://www.googleapis.com/auth/spreadsheets']
+    })
+    
+    const sheets = google.sheets({ version: 'v4', auth })
     await sheets.spreadsheets.values.append({
       spreadsheetId: process.env.SHEET_ID,
       range: 'Sheet1!A:B',
@@ -21,9 +22,16 @@ export async function POST(request: Request) {
       }
     })
     
+    // Also save to Supabase
+    const { error } = await supabase
+      .from('prayers')
+      .insert([{ content: prayer, created_at: new Date().toISOString() }])
+      
+    if (error) throw error
+    
     return NextResponse.json({ success: true })
-  } catch (err) { // Changed from 'error' to 'err' and using it
-    console.error('Failed to submit prayer:', err)
-    return NextResponse.json({ error: 'Failed to submit' }, { status: 500 })
+  } catch (error) {
+    console.error('Error submitting prayer:', error)
+    return NextResponse.json({ error: 'Failed to submit prayer' }, { status: 500 })
   }
 }

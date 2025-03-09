@@ -5,32 +5,38 @@ import Image from 'next/image';
 interface Prayer {
   id: string;
   content: string;
-  timestamp: string;
+  created_at: string;
+}
+
+interface PrayersResponse {
+  prayers: Prayer[];
+  total: number;
+  page: number;
+  limit: number;
 }
 
 export default function PrayerWallDisplay() {
   const [prayers, setPrayers] = useState<Prayer[]>([]);
   const [isLoading, setIsLoading] = useState(true);
   const [currentPage, setCurrentPage] = useState(0);
+  const [totalPages, setTotalPages] = useState(1);
   const prayersPerPage = 7;
   
   useEffect(() => {
     const fetchPrayers = async () => {
       try {
         setIsLoading(true);
-        const rssResponse = await fetch('/api/rss');
-        const rssData = await rssResponse.text();
-        const parser = new DOMParser();
-        const rssDoc = parser.parseFromString(rssData, 'text/xml');
-        const items = rssDoc.querySelectorAll('item');
+        // Fetch all prayers without limit
+        const response = await fetch('/api/prayers');
         
-        const prayerItems = Array.from(items).map((item): Prayer => ({
-          id: item.querySelector('guid')?.textContent || Math.random().toString(),
-          content: item.querySelector('description')?.textContent || '',
-          timestamp: item.querySelector('pubDate')?.textContent || ''
-        }));
+        if (!response.ok) {
+          console.error('Failed to fetch prayers');
+          return;
+        }
         
-        setPrayers(prayerItems);
+        const data: PrayersResponse = await response.json();
+        setPrayers(data.prayers);
+        setTotalPages(Math.ceil(data.total / prayersPerPage) + 1); // +1 for instruction page
       } catch (err) {
         console.error('Error fetching prayers:', err);
       } finally {
@@ -39,19 +45,18 @@ export default function PrayerWallDisplay() {
     };
 
     fetchPrayers();
-    const interval = setInterval(fetchPrayers, 30000);
+    const interval = setInterval(fetchPrayers, 300000); // Refresh every 5 minutes
     return () => clearInterval(interval);
   }, []);
 
+  // Page rotation
   useEffect(() => {
-    const totalPages = Math.ceil(prayers.length / prayersPerPage) + 1;
-    
     const timer = setInterval(() => {
       setCurrentPage(prev => (prev + 1) % totalPages);
-    }, 18000);
+    }, 18000); // 18 seconds per page
 
     return () => clearInterval(timer);
-  }, [prayers.length]);
+  }, [totalPages]);
 
   if (isLoading && prayers.length === 0) {
     return (
@@ -79,7 +84,7 @@ export default function PrayerWallDisplay() {
         <h2 className="text-5xl font-bold text-white mb-12">Submit Your Prayer Intention</h2>
         <div className="space-y-8 text-2xl text-slate-100">
           <p className="mb-8 text-3xl">
-            Use the iPad to submit your prayer intention
+            Use the iPad in the church to submit your prayer intention
           </p>
           <p className="text-blue-400 text-3xl">
             - or -
@@ -93,6 +98,22 @@ export default function PrayerWallDisplay() {
       </div>
     </div>
   );
+
+  // Calculate displayed prayers for current page
+  const getDisplayedPrayers = () => {
+    // If instruction page
+    if (currentPage === Math.ceil(prayers.length / prayersPerPage)) {
+      return [];
+    }
+    
+    // Regular prayer page
+    return prayers.slice(
+      currentPage * prayersPerPage,
+      (currentPage + 1) * prayersPerPage
+    );
+  };
+
+  const displayedPrayers = getDisplayedPrayers();
 
   return (
     <div 
@@ -136,38 +157,33 @@ export default function PrayerWallDisplay() {
           <InstructionPage />
         ) : (
           <div className="space-y-7 transition-opacity duration-1000 ease-in-out">
-            {prayers
-              .slice(
-                currentPage * prayersPerPage,
-                (currentPage + 1) * prayersPerPage
-              )
-              .map((prayer, index) => (
-                <div 
-                  key={`${prayer.id}-${currentPage}`}
-                  className="bg-slate-800/70 border border-slate-700 rounded-xl shadow-xl backdrop-blur-sm p-8 opacity-0 animate-fadeIn"
-                  style={{
-                    animationDelay: `${index * 200}ms`,
-                    animationFillMode: 'forwards'
-                  }}
-                >
-                  <div className="flex items-start gap-6">
-                    <span className="text-4xl">🙏</span>
-                    <div>
-                      <p className="text-2xl text-slate-100 mb-4 leading-relaxed">
-                        {prayer.content}
-                      </p>
-                      <p className="text-lg text-slate-400">
-                        {new Date(prayer.timestamp).toLocaleDateString('en-US', {
-                          month: 'long',
-                          day: 'numeric',
-                          hour: 'numeric',
-                          minute: '2-digit'
-                        })}
-                      </p>
-                    </div>
+            {displayedPrayers.map((prayer, index) => (
+              <div 
+                key={`${prayer.id}-${currentPage}`}
+                className="bg-slate-800/70 border border-slate-700 rounded-xl shadow-xl backdrop-blur-sm p-8 opacity-0 animate-fadeIn"
+                style={{
+                  animationDelay: `${index * 200}ms`,
+                  animationFillMode: 'forwards'
+                }}
+              >
+                <div className="flex items-start gap-6">
+                  <span className="text-4xl">🙏</span>
+                  <div>
+                    <p className="text-xl text-slate-100 mb-4 leading-relaxed">
+                      {prayer.content}
+                    </p>
+                    <p className="text-lg text-slate-400">
+                      {new Date(prayer.created_at).toLocaleDateString('en-US', {
+                        month: 'long',
+                        day: 'numeric',
+                        hour: 'numeric',
+                        minute: '2-digit'
+                      })}
+                    </p>
                   </div>
                 </div>
-              ))}
+              </div>
+            ))}
           </div>
         )}
       </div>
