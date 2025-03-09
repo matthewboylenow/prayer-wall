@@ -3,7 +3,7 @@ import { supabase } from '@/lib/supabase'
 
 export const dynamic = 'force-dynamic'
 
-export async function GET(request: Request) {
+export async function GET() {
   try {
     // Get total count
     const { count, error: countError } = await supabase
@@ -12,11 +12,11 @@ export async function GET(request: Request) {
       
     if (countError) throw countError
     
-// Get all prayers
-const { data, error } = await supabase
-  .from('prayers')
-  .select('*')
-  .order('created_at', { ascending: true }) // Change to ascending for chronological order
+    // Get all prayers
+    const { data, error } = await supabase
+      .from('prayers')
+      .select('*')
+      .order('created_at', { ascending: true }) 
       
     if (error) throw error
     
