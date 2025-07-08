@@ -49,8 +49,22 @@ export default function PrayerForm() {
   }
 
   return (
-    <div className="min-h-screen flex items-center justify-center bg-white p-4">
-      <div className={`transition-opacity duration-500 ${isAnimating ? 'opacity-0' : 'opacity-100'}`}>
+    <div 
+      className="min-h-screen flex items-center justify-center bg-white p-4"
+      style={{
+        minHeight: '100vh',
+        height: 'auto',
+        WebkitBackfaceVisibility: 'hidden',
+        backfaceVisibility: 'hidden'
+      }}
+    >
+      <div 
+        className={`w-full max-w-lg transition-opacity duration-500 ${isAnimating ? 'opacity-0' : 'opacity-100'}`}
+        style={{
+          transform: 'translateZ(0)', // Force hardware acceleration
+          WebkitTransform: 'translateZ(0)'
+        }}
+      >
         {showThanks ? (
           <div className="text-center">
             <Image
@@ -59,13 +73,14 @@ export default function PrayerForm() {
               width={400}
               height={67}
               className="w-auto h-16 mx-auto mb-6"
+              priority
             />
             <div className="text-4xl mb-6">🙏</div>
             <h2 className="text-3xl font-bold mb-4 text-blue-900">Prayer Received</h2>
             <p className="text-slate-800">Your prayer has been added to our wall</p>
           </div>
         ) : (
-          <div className="w-full max-w-lg">
+          <div className="w-full">
             <div className="text-center mb-8">
               <Image
                 src="/images/Saint-Helen-Submark-Black.png"
@@ -89,7 +104,10 @@ export default function PrayerForm() {
                     fontSize: '18px',
                     lineHeight: '1.5',
                     WebkitAppearance: 'none',
-                    borderRadius: '12px'
+                    borderRadius: '12px',
+                    minHeight: '160px',
+                    resize: 'none',
+                    WebkitTapHighlightColor: 'transparent'
                   }}
                 />
                 {error && (
@@ -101,7 +119,9 @@ export default function PrayerForm() {
                 className="w-full bg-blue-900 text-white py-5 rounded-xl hover:bg-blue-800 transition-all duration-200 text-xl font-semibold active:bg-blue-950"
                 style={{
                   WebkitTapHighlightColor: 'transparent',
-                  touchAction: 'manipulation'
+                  touchAction: 'manipulation',
+                  minHeight: '64px',
+                  WebkitAppearance: 'none'
                 }}
               >
                 Submit Prayer
