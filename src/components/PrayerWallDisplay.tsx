@@ -15,18 +15,47 @@ interface PrayersResponse {
   limit: number;
 }
 
+// Configuration for display strategy
+const DISPLAY_CONFIG = {
+  prayersPerPage: 7,
+  pageDisplayTime: 18000, // 18 seconds
+  recentDays: 7, // Consider prayers from last 7 days as "recent"
+  recentWeight: 0.7, // 70% of time show recent prayers
+  instructionPageFrequency: 10, // Show instruction page every 10 pages
+};
+
 export default function PrayerWallDisplay() {
   const [prayers, setPrayers] = useState<Prayer[]>([]);
   const [isLoading, setIsLoading] = useState(true);
   const [currentPage, setCurrentPage] = useState(0);
-  const [totalPages, setTotalPages] = useState(1);
-  const prayersPerPage = 7;
+  const [displayStrategy, setDisplayStrategy] = useState<'recent' | 'older' | 'instruction'>('recent');
+  const [pageCount, setPageCount] = useState(0);
+  
+  // Separate prayers into recent and older
+  const separatePrayers = (prayers: Prayer[]) => {
+    const cutoffDate = new Date();
+    cutoffDate.setDate(cutoffDate.getDate() - DISPLAY_CONFIG.recentDays);
+    
+    const recent: Prayer[] = [];
+    const older: Prayer[] = [];
+    
+    prayers.forEach(prayer => {
+      if (new Date(prayer.created_at) > cutoffDate) {
+        recent.push(prayer);
+      } else {
+        older.push(prayer);
+      }
+    });
+    
+    return { recent, older };
+  };
+
+  const { recent, older } = separatePrayers(prayers);
   
   useEffect(() => {
     const fetchPrayers = async () => {
       try {
         setIsLoading(true);
-        // Fetch all prayers without limit
         const response = await fetch('/api/prayers');
         
         if (!response.ok) {
@@ -36,7 +65,6 @@ export default function PrayerWallDisplay() {
         
         const data: PrayersResponse = await response.json();
         setPrayers(data.prayers);
-        setTotalPages(Math.ceil(data.total / prayersPerPage) + 1); // +1 for instruction page
       } catch (err) {
         console.error('Error fetching prayers:', err);
       } finally {
@@ -49,14 +77,43 @@ export default function PrayerWallDisplay() {
     return () => clearInterval(interval);
   }, []);
 
-  // Page rotation
+  // Smart page rotation logic
   useEffect(() => {
     const timer = setInterval(() => {
-      setCurrentPage(prev => (prev + 1) % totalPages);
-    }, 18000); // 18 seconds per page
+      setPageCount(prev => prev + 1);
+      
+      // Show instruction page every N pages
+      if (pageCount > 0 && pageCount % DISPLAY_CONFIG.instructionPageFrequency === 0) {
+        setDisplayStrategy('instruction');
+        setCurrentPage(0);
+        return;
+      }
+      
+      // Determine whether to show recent or older prayers
+      const showRecent = Math.random() < DISPLAY_CONFIG.recentWeight;
+      const prayersToShow = showRecent ? recent : older;
+      
+      if (prayersToShow.length === 0) {
+        // If no prayers in selected category, switch to the other
+        const fallbackPrayers = showRecent ? older : recent;
+        setDisplayStrategy(showRecent ? 'older' : 'recent');
+        setCurrentPage(0);
+      } else {
+        setDisplayStrategy(showRecent ? 'recent' : 'older');
+        const maxPages = Math.ceil(prayersToShow.length / DISPLAY_CONFIG.prayersPerPage);
+        setCurrentPage(prev => {
+          // For recent prayers, cycle through all pages
+          if (showRecent) {
+            return (prev + 1) % maxPages;
+          }
+          // For older prayers, show random pages to ensure variety
+          return Math.floor(Math.random() * maxPages);
+        });
+      }
+    }, DISPLAY_CONFIG.pageDisplayTime);
 
     return () => clearInterval(timer);
-  }, [totalPages]);
+  }, [recent.length, older.length, pageCount]);
 
   if (isLoading && prayers.length === 0) {
     return (
@@ -95,25 +152,44 @@ export default function PrayerWallDisplay() {
           </p>
           <div className="text-7xl mt-12">🙏</div>
         </div>
+        
+        {/* Show stats */}
+        <div className="mt-8 pt-8 border-t border-slate-600">
+          <p className="text-slate-300 text-xl">
+            {prayers.length} prayers shared • {recent.length} this week
+          </p>
+        </div>
       </div>
     </div>
   );
 
-  // Calculate displayed prayers for current page
-  const getDisplayedPrayers = () => {
-    // If instruction page
-    if (currentPage === Math.ceil(prayers.length / prayersPerPage)) {
-      return [];
-    }
+  // Get prayers to display based on current strategy
+  const getPrayersToDisplay = () => {
+    if (displayStrategy === 'instruction') return [];
     
-    // Regular prayer page
-    return prayers.slice(
-      currentPage * prayersPerPage,
-      (currentPage + 1) * prayersPerPage
-    );
+    const prayersToShow = displayStrategy === 'recent' ? recent : older;
+    const startIndex = currentPage * DISPLAY_CONFIG.prayersPerPage;
+    const endIndex = startIndex + DISPLAY_CONFIG.prayersPerPage;
+    
+    return prayersToShow.slice(startIndex, endIndex);
   };
 
-  const displayedPrayers = getDisplayedPrayers();
+  const displayedPrayers = getPrayersToDisplay();
+
+  // Helper function to get relative time
+  const getRelativeTime = (dateString: string) => {
+    const date = new Date(dateString);
+    const now = new Date();
+    const diffInHours = Math.floor((now.getTime() - date.getTime()) / (1000 * 60 * 60));
+    const diffInDays = Math.floor(diffInHours / 24);
+    
+    if (diffInHours < 1) return 'Just now';
+    if (diffInHours < 24) return `${diffInHours}h ago`;
+    if (diffInDays < 7) return `${diffInDays}d ago`;
+    if (diffInDays < 30) return `${Math.floor(diffInDays / 7)}w ago`;
+    if (diffInDays < 365) return `${Math.floor(diffInDays / 30)}mo ago`;
+    return `${Math.floor(diffInDays / 365)}y ago`;
+  };
 
   return (
     <div 
@@ -144,22 +220,32 @@ export default function PrayerWallDisplay() {
             priority
           />
         </div>
-        <h1 className="text-6xl font-bold text-white">
-          Jubilee Prayer Wall
-        </h1>
+        <div className="flex items-center justify-center gap-4">
+          <h1 className="text-6xl font-bold text-white">
+            Jubilee Prayer Wall
+          </h1>
+          {displayStrategy !== 'instruction' && (
+            <div className="flex items-center gap-2">
+              <div className={`w-3 h-3 rounded-full ${displayStrategy === 'recent' ? 'bg-green-400' : 'bg-blue-400'}`}></div>
+              <span className="text-slate-300 text-xl">
+                {displayStrategy === 'recent' ? 'Recent' : 'Archive'}
+              </span>
+            </div>
+          )}
+        </div>
       </header>
 
       <div 
         className="p-8 max-w-6xl mx-auto relative" 
         style={{ height: 'calc(100vh - 180px)' }}
       >
-        {currentPage === Math.ceil(prayers.length / prayersPerPage) ? (
+        {displayStrategy === 'instruction' ? (
           <InstructionPage />
         ) : (
           <div className="space-y-7 transition-opacity duration-1000 ease-in-out">
             {displayedPrayers.map((prayer, index) => (
               <div 
-                key={`${prayer.id}-${currentPage}`}
+                key={`${prayer.id}-${currentPage}-${displayStrategy}`}
                 className="bg-slate-800/70 border border-slate-700 rounded-xl shadow-xl backdrop-blur-sm p-8 opacity-0 animate-fadeIn"
                 style={{
                   animationDelay: `${index * 200}ms`,
@@ -168,18 +254,27 @@ export default function PrayerWallDisplay() {
               >
                 <div className="flex items-start gap-6">
                   <span className="text-4xl">🙏</span>
-                  <div>
+                  <div className="flex-1">
                     <p className="text-xl text-slate-100 mb-4 leading-relaxed">
                       {prayer.content}
                     </p>
-                    <p className="text-lg text-slate-400">
-                      {new Date(prayer.created_at).toLocaleDateString('en-US', {
-                        month: 'long',
-                        day: 'numeric',
-                        hour: 'numeric',
-                        minute: '2-digit'
-                      })}
-                    </p>
+                    <div className="flex justify-between items-center">
+                      <p className="text-lg text-slate-400">
+                        {new Date(prayer.created_at).toLocaleDateString('en-US', {
+                          month: 'long',
+                          day: 'numeric',
+                          hour: 'numeric',
+                          minute: '2-digit'
+                        })}
+                      </p>
+                      <span className={`text-sm px-3 py-1 rounded-full ${
+                        displayStrategy === 'recent' 
+                          ? 'bg-green-400/20 text-green-400' 
+                          : 'bg-blue-400/20 text-blue-400'
+                      }`}>
+                        {getRelativeTime(prayer.created_at)}
+                      </span>
+                    </div>
                   </div>
                 </div>
               </div>
