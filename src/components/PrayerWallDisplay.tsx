@@ -95,7 +95,6 @@ export default function PrayerWallDisplay() {
       
       if (prayersToShow.length === 0) {
         // If no prayers in selected category, switch to the other
-        const fallbackPrayers = showRecent ? older : recent;
         setDisplayStrategy(showRecent ? 'older' : 'recent');
         setCurrentPage(0);
       } else {
@@ -113,7 +112,7 @@ export default function PrayerWallDisplay() {
     }, DISPLAY_CONFIG.pageDisplayTime);
 
     return () => clearInterval(timer);
-  }, [recent.length, older.length, pageCount]);
+  }, [recent, older, pageCount]);
 
   if (isLoading && prayers.length === 0) {
     return (
