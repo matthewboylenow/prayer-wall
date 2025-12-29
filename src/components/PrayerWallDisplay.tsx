@@ -1,18 +1,21 @@
 'use client'
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useRef } from 'react';
 import Image from 'next/image';
+import CandleIcon from './CandleIcon';
 
 interface Prayer {
   id: string;
   content: string;
   created_at: string;
+  season?: string;
 }
 
 interface PrayersResponse {
-  prayers: Prayer[];
-  total: number;
-  page: number;
-  limit: number;
+  wall: Prayer[];
+  archiveSample: Prayer[];
+  totalWall: number;
+  totalArchive: number;
+  generatedAt: string;
 }
 
 // Configuration for display strategy
@@ -20,25 +23,33 @@ const DISPLAY_CONFIG = {
   prayersPerPage: 7,
   pageDisplayTime: 18000, // 18 seconds
   recentDays: 7, // Consider prayers from last 7 days as "recent"
-  recentWeight: 0.7, // 70% of time show recent prayers
   instructionPageFrequency: 10, // Show instruction page every 10 pages
+  // Weighted strategy selection
+  recentWeight: 0.70,
+  olderWeight: 0.25,
+  archiveWeight: 0.05,
 };
 
+type DisplayStrategy = 'recent' | 'older' | 'archive' | 'instruction';
+
 export default function PrayerWallDisplay() {
-  const [prayers, setPrayers] = useState<Prayer[]>([]);
+  const [wallPrayers, setWallPrayers] = useState<Prayer[]>([]);
+  const [archivePrayers, setArchivePrayers] = useState<Prayer[]>([]);
+  const [totalWall, setTotalWall] = useState(0);
+  const [totalArchive, setTotalArchive] = useState(0);
   const [isLoading, setIsLoading] = useState(true);
   const [currentPage, setCurrentPage] = useState(0);
-  const [displayStrategy, setDisplayStrategy] = useState<'recent' | 'older' | 'instruction'>('recent');
-  const [pageCount, setPageCount] = useState(0);
-  
-  // Separate prayers into recent and older
+  const [displayStrategy, setDisplayStrategy] = useState<DisplayStrategy>('recent');
+  const pageCountRef = useRef(0);
+
+  // Separate wall prayers into recent and older
   const separatePrayers = (prayers: Prayer[]) => {
     const cutoffDate = new Date();
     cutoffDate.setDate(cutoffDate.getDate() - DISPLAY_CONFIG.recentDays);
-    
+
     const recent: Prayer[] = [];
     const older: Prayer[] = [];
-    
+
     prayers.forEach(prayer => {
       if (new Date(prayer.created_at) > cutoffDate) {
         recent.push(prayer);
@@ -46,25 +57,28 @@ export default function PrayerWallDisplay() {
         older.push(prayer);
       }
     });
-    
+
     return { recent, older };
   };
 
-  const { recent, older } = separatePrayers(prayers);
-  
+  const { recent, older } = separatePrayers(wallPrayers);
+
   useEffect(() => {
     const fetchPrayers = async () => {
       try {
         setIsLoading(true);
         const response = await fetch('/api/prayers');
-        
+
         if (!response.ok) {
           console.error('Failed to fetch prayers');
           return;
         }
-        
+
         const data: PrayersResponse = await response.json();
-        setPrayers(data.prayers);
+        setWallPrayers(data.wall);
+        setArchivePrayers(data.archiveSample);
+        setTotalWall(data.totalWall);
+        setTotalArchive(data.totalArchive);
       } catch (err) {
         console.error('Error fetching prayers:', err);
       } finally {
@@ -77,46 +91,81 @@ export default function PrayerWallDisplay() {
     return () => clearInterval(interval);
   }, []);
 
-  // Smart page rotation logic
+  // Smart page rotation logic with useRef to fix interval dependency bug
   useEffect(() => {
     const timer = setInterval(() => {
-      setPageCount(prev => prev + 1);
-      
+      pageCountRef.current += 1;
+      const currentCount = pageCountRef.current;
+
       // Show instruction page every N pages
-      if (pageCount > 0 && pageCount % DISPLAY_CONFIG.instructionPageFrequency === 0) {
+      if (currentCount > 0 && currentCount % DISPLAY_CONFIG.instructionPageFrequency === 0) {
         setDisplayStrategy('instruction');
         setCurrentPage(0);
         return;
       }
-      
-      // Determine whether to show recent or older prayers
-      const showRecent = Math.random() < DISPLAY_CONFIG.recentWeight;
-      const prayersToShow = showRecent ? recent : older;
-      
-      if (prayersToShow.length === 0) {
-        // If no prayers in selected category, switch to the other
-        setDisplayStrategy(showRecent ? 'older' : 'recent');
-        setCurrentPage(0);
+
+      // Weighted strategy selection
+      const rand = Math.random();
+      let selectedStrategy: DisplayStrategy;
+
+      if (rand < DISPLAY_CONFIG.recentWeight) {
+        selectedStrategy = 'recent';
+      } else if (rand < DISPLAY_CONFIG.recentWeight + DISPLAY_CONFIG.olderWeight) {
+        selectedStrategy = 'older';
       } else {
-        setDisplayStrategy(showRecent ? 'recent' : 'older');
-        const maxPages = Math.ceil(prayersToShow.length / DISPLAY_CONFIG.prayersPerPage);
-        setCurrentPage(prev => {
-          // For recent prayers, cycle through all pages
-          if (showRecent) {
-            return (prev + 1) % maxPages;
-          }
-          // For older prayers, show random pages to ensure variety
-          return Math.floor(Math.random() * maxPages);
-        });
+        selectedStrategy = 'archive';
+      }
+
+      // Get prayers for selected strategy
+      let prayersToShow: Prayer[] = [];
+      switch (selectedStrategy) {
+        case 'recent':
+          prayersToShow = recent;
+          break;
+        case 'older':
+          prayersToShow = older;
+          break;
+        case 'archive':
+          prayersToShow = archivePrayers;
+          break;
+      }
+
+      // Fallback if selected category is empty
+      if (prayersToShow.length === 0) {
+        if (recent.length > 0) {
+          selectedStrategy = 'recent';
+          prayersToShow = recent;
+        } else if (older.length > 0) {
+          selectedStrategy = 'older';
+          prayersToShow = older;
+        } else if (archivePrayers.length > 0) {
+          selectedStrategy = 'archive';
+          prayersToShow = archivePrayers;
+        } else {
+          setDisplayStrategy('instruction');
+          setCurrentPage(0);
+          return;
+        }
+      }
+
+      setDisplayStrategy(selectedStrategy);
+      const maxPages = Math.ceil(prayersToShow.length / DISPLAY_CONFIG.prayersPerPage);
+
+      if (selectedStrategy === 'recent') {
+        // For recent prayers, cycle through pages sequentially
+        setCurrentPage(prev => (prev + 1) % maxPages);
+      } else {
+        // For older/archive prayers, show random pages for variety
+        setCurrentPage(Math.floor(Math.random() * maxPages));
       }
     }, DISPLAY_CONFIG.pageDisplayTime);
 
     return () => clearInterval(timer);
-  }, [recent, older, pageCount]);
+  }, [recent, older, archivePrayers]);
 
-  if (isLoading && prayers.length === 0) {
+  if (isLoading && wallPrayers.length === 0) {
     return (
-      <div className="min-h-screen bg-slate-900 flex items-center justify-center">
+      <div className="min-h-screen bg-gradient-to-br from-slate-950 via-violet-950 to-slate-900 flex items-center justify-center">
         <div className="text-center">
           <Image
             src="/images/Saint-Helen-Submark-White.png"
@@ -136,26 +185,28 @@ export default function PrayerWallDisplay() {
 
   const InstructionPage = () => (
     <div key="instruction-page" className="flex flex-col items-center justify-center h-full text-center px-12">
-      <div className="bg-slate-800/70 border border-slate-700 rounded-2xl shadow-xl backdrop-blur-sm p-12 max-w-3xl">
+      <div className="liquid-glass rounded-2xl shadow-xl p-12 max-w-3xl">
         <h2 className="text-5xl font-bold text-white mb-12">Submit Your Prayer Intention</h2>
         <div className="space-y-8 text-2xl text-slate-100">
           <p className="mb-8 text-3xl">
             Use the iPad in the church to submit your prayer intention
           </p>
-          <p className="text-blue-400 text-3xl">
+          <p className="text-amber-300/80 text-3xl">
             - or -
           </p>
           <p className="text-3xl">
-            Visit <span className="text-blue-400 font-semibold">prayerwall.sainthelen.org</span><br />
+            Visit <span className="text-amber-300 font-semibold">prayerwall.sainthelen.org</span><br />
             on your mobile device
           </p>
-          <div className="text-7xl mt-12">🙏</div>
+          <div className="mt-12 flex justify-center">
+            <CandleIcon size="lg" />
+          </div>
         </div>
-        
+
         {/* Show stats */}
-        <div className="mt-8 pt-8 border-t border-slate-600">
+        <div className="mt-8 pt-8 border-t border-white/10">
           <p className="text-slate-300 text-xl">
-            {prayers.length} prayers shared • {recent.length} this week
+            {totalWall + totalArchive} prayers shared • {recent.length} this week
           </p>
         </div>
       </div>
@@ -165,11 +216,25 @@ export default function PrayerWallDisplay() {
   // Get prayers to display based on current strategy
   const getPrayersToDisplay = () => {
     if (displayStrategy === 'instruction') return [];
-    
-    const prayersToShow = displayStrategy === 'recent' ? recent : older;
+
+    let prayersToShow: Prayer[];
+    switch (displayStrategy) {
+      case 'recent':
+        prayersToShow = recent;
+        break;
+      case 'older':
+        prayersToShow = older;
+        break;
+      case 'archive':
+        prayersToShow = archivePrayers;
+        break;
+      default:
+        prayersToShow = [];
+    }
+
     const startIndex = currentPage * DISPLAY_CONFIG.prayersPerPage;
     const endIndex = startIndex + DISPLAY_CONFIG.prayersPerPage;
-    
+
     return prayersToShow.slice(startIndex, endIndex);
   };
 
@@ -181,7 +246,7 @@ export default function PrayerWallDisplay() {
     const now = new Date();
     const diffInHours = Math.floor((now.getTime() - date.getTime()) / (1000 * 60 * 60));
     const diffInDays = Math.floor(diffInHours / 24);
-    
+
     if (diffInHours < 1) return 'Just now';
     if (diffInHours < 24) return `${diffInHours}h ago`;
     if (diffInDays < 7) return `${diffInDays}d ago`;
@@ -190,9 +255,25 @@ export default function PrayerWallDisplay() {
     return `${Math.floor(diffInDays / 365)}y ago`;
   };
 
+  // Get strategy label and color
+  const getStrategyInfo = () => {
+    switch (displayStrategy) {
+      case 'recent':
+        return { label: 'Recent', color: 'bg-teal-400', textColor: 'text-teal-400' };
+      case 'older':
+        return { label: 'From the Archive', color: 'bg-sky-400', textColor: 'text-sky-400' };
+      case 'archive':
+        return { label: 'Jubilee Year of Hope', color: 'bg-amber-300', textColor: 'text-amber-300' };
+      default:
+        return { label: '', color: '', textColor: '' };
+    }
+  };
+
+  const strategyInfo = getStrategyInfo();
+
   return (
-    <div 
-      className="min-h-screen bg-slate-900 overflow-hidden"
+    <div
+      className="min-h-screen bg-gradient-to-br from-slate-950 via-violet-950 to-slate-900 overflow-hidden"
       style={{
         height: '100vh',
         width: '100vw',
@@ -200,7 +281,7 @@ export default function PrayerWallDisplay() {
         WebkitFontSmoothing: 'antialiased'
       }}
     >
-      <header className="text-center py-8 bg-slate-800/50 backdrop-blur-sm border-b border-slate-700">
+      <header className="text-center py-8 liquid-glass-header border-b border-white/10">
         <div className="flex justify-center items-center gap-8 mb-6">
           <Image
             src="/images/Saint-Helen-Submark-White.png"
@@ -210,32 +291,24 @@ export default function PrayerWallDisplay() {
             className="w-[500px] h-auto"
             priority
           />
-          <Image
-            src="/images/Jubilee-Logo.png"
-            alt="Jubilee Logo"
-            width={84}
-            height={84}
-            className="h-[84px] w-auto"
-            priority
-          />
         </div>
         <div className="flex items-center justify-center gap-4">
           <h1 className="text-6xl font-bold text-white">
-            Jubilee Prayer Wall
+            Prayer Wall
           </h1>
           {displayStrategy !== 'instruction' && (
             <div className="flex items-center gap-2">
-              <div className={`w-3 h-3 rounded-full ${displayStrategy === 'recent' ? 'bg-green-400' : 'bg-blue-400'}`}></div>
-              <span className="text-slate-300 text-xl">
-                {displayStrategy === 'recent' ? 'Recent' : 'Archive'}
+              <div className={`w-3 h-3 rounded-full ${strategyInfo.color}`}></div>
+              <span className={`text-xl ${strategyInfo.textColor}`}>
+                {strategyInfo.label}
               </span>
             </div>
           )}
         </div>
       </header>
 
-      <div 
-        className="p-8 max-w-6xl mx-auto relative" 
+      <div
+        className="p-8 max-w-6xl mx-auto relative"
         style={{ height: 'calc(100vh - 180px)' }}
       >
         {displayStrategy === 'instruction' ? (
@@ -243,16 +316,16 @@ export default function PrayerWallDisplay() {
         ) : (
           <div className="space-y-7 transition-opacity duration-1000 ease-in-out">
             {displayedPrayers.map((prayer, index) => (
-              <div 
+              <div
                 key={`${prayer.id}-${currentPage}-${displayStrategy}`}
-                className="bg-slate-800/70 border border-slate-700 rounded-xl shadow-xl backdrop-blur-sm p-8 opacity-0 animate-fadeIn"
+                className="liquid-glass rounded-xl shadow-xl p-8 opacity-0 animate-fadeIn"
                 style={{
                   animationDelay: `${index * 200}ms`,
                   animationFillMode: 'forwards'
                 }}
               >
                 <div className="flex items-start gap-6">
-                  <span className="text-4xl">🙏</span>
+                  <CandleIcon size="sm" />
                   <div className="flex-1">
                     <p className="text-xl text-slate-100 mb-4 leading-relaxed">
                       {prayer.content}
@@ -267,11 +340,13 @@ export default function PrayerWallDisplay() {
                         })}
                       </p>
                       <span className={`text-sm px-3 py-1 rounded-full ${
-                        displayStrategy === 'recent' 
-                          ? 'bg-green-400/20 text-green-400' 
-                          : 'bg-blue-400/20 text-blue-400'
+                        displayStrategy === 'archive'
+                          ? 'bg-amber-300/20 text-amber-300'
+                          : displayStrategy === 'recent'
+                            ? 'bg-teal-400/20 text-teal-400'
+                            : 'bg-sky-400/20 text-sky-400'
                       }`}>
-                        {getRelativeTime(prayer.created_at)}
+                        {displayStrategy === 'archive' ? 'Jubilee 2025' : getRelativeTime(prayer.created_at)}
                       </span>
                     </div>
                   </div>

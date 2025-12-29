@@ -1,6 +1,7 @@
 'use client'
 import { useState } from 'react'
 import Image from 'next/image'
+import CandleIcon from './CandleIcon'
 
 const BLOCKED_WORDS = [
   'damn', 'hell', 'shit', 'fuck', 'ass', 'bitch', 'crap', 'piss',
@@ -49,8 +50,8 @@ export default function PrayerForm() {
   }
 
   return (
-    <div 
-      className="min-h-screen flex items-center justify-center bg-white p-4"
+    <div
+      className="min-h-screen flex items-center justify-center bg-gradient-to-b from-slate-50 to-white p-4"
       style={{
         minHeight: '100vh',
         height: 'auto',
@@ -75,7 +76,9 @@ export default function PrayerForm() {
               className="w-auto h-16 mx-auto mb-6"
               priority
             />
-            <div className="text-4xl mb-6">🙏</div>
+            <div className="flex justify-center mb-6">
+              <CandleIcon size="lg" />
+            </div>
             <h2 className="text-3xl font-bold mb-4 text-blue-900">Prayer Received</h2>
             <p className="text-slate-800">Your prayer has been added to our wall</p>
           </div>
@@ -90,7 +93,10 @@ export default function PrayerForm() {
                 className="w-auto h-16 mx-auto mb-6"
                 priority
               />
-              <h1 className="text-3xl text-blue-900 font-bold">Share Your Prayer</h1>
+              <h1 className="text-3xl text-blue-900 font-bold mb-3">Share Your Prayer</h1>
+              <p className="text-slate-600 text-lg leading-relaxed max-w-md mx-auto">
+                Welcome to our parish prayer wall. Share your intentions with our community and know that you are held in prayer.
+              </p>
             </div>
             <form onSubmit={handleSubmit} className="space-y-6">
               <div className="relative">
@@ -114,7 +120,7 @@ export default function PrayerForm() {
                   <p className="text-red-600 mt-2 text-center">{error}</p>
                 )}
               </div>
-              <button 
+              <button
                 type="submit"
                 className="w-full bg-blue-900 text-white py-5 rounded-xl hover:bg-blue-800 transition-all duration-200 text-xl font-semibold active:bg-blue-950"
                 style={{
@@ -126,6 +132,9 @@ export default function PrayerForm() {
               >
                 Submit Prayer
               </button>
+              <p className="text-center text-slate-500 text-sm mt-4">
+                Your prayer will be displayed on our parish prayer wall.
+              </p>
             </form>
           </div>
         )}
