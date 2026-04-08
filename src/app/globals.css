@@ -3,21 +3,21 @@
 @tailwind utilities;
 
 :root {
-  --background: #ffffff;
-  --foreground: #171717;
+  --background: #FAF9F7;
+  --foreground: #1F346D;
 }
 
 @media (prefers-color-scheme: dark) {
   :root {
-    --background: #0a0a0a;
-    --foreground: #ededed;
+    --background: #0F1A38;
+    --foreground: #FAF9F7;
   }
 }
 
 body {
   color: var(--foreground);
   background: var(--background);
-  font-family: Arial, Helvetica, sans-serif;
+  font-family: var(--font-libre-franklin), 'Libre Franklin', sans-serif;
   /* iPad-specific fixes */
   -webkit-text-size-adjust: 100%;
   -webkit-font-smoothing: antialiased;
@@ -26,37 +26,41 @@ body {
   touch-action: manipulation;
 }
 
+h1, h2, h3, h4, h5, h6 {
+  font-family: var(--font-libre-baskerville), 'Libre Baskerville', serif;
+}
+
 /* ============================================
-   Liquid Glass Styling (Apple-inspired)
+   Liquid Glass Styling (Warm, Saint Helen)
    ============================================ */
 
 .liquid-glass {
   background: linear-gradient(
     135deg,
-    rgba(255, 255, 255, 0.1) 0%,
-    rgba(255, 255, 255, 0.05) 50%,
-    rgba(255, 255, 255, 0.02) 100%
+    rgba(250, 249, 247, 0.1) 0%,
+    rgba(212, 175, 55, 0.05) 50%,
+    rgba(250, 249, 247, 0.02) 100%
   );
   backdrop-filter: blur(20px) saturate(180%);
   -webkit-backdrop-filter: blur(20px) saturate(180%);
-  border: 1px solid rgba(255, 255, 255, 0.15);
+  border: 1px solid rgba(250, 249, 247, 0.12);
   box-shadow:
-    0 8px 32px rgba(0, 0, 0, 0.3),
-    inset 0 1px 0 rgba(255, 255, 255, 0.1),
-    inset 0 -1px 0 rgba(0, 0, 0, 0.1);
+    0 8px 32px rgba(15, 26, 56, 0.4),
+    inset 0 1px 0 rgba(250, 249, 247, 0.1),
+    inset 0 -1px 0 rgba(15, 26, 56, 0.1);
 }
 
 .liquid-glass-header {
   background: linear-gradient(
     180deg,
-    rgba(255, 255, 255, 0.08) 0%,
-    rgba(255, 255, 255, 0.02) 100%
+    rgba(250, 249, 247, 0.08) 0%,
+    rgba(31, 52, 109, 0.04) 100%
   );
   backdrop-filter: blur(24px) saturate(160%);
   -webkit-backdrop-filter: blur(24px) saturate(160%);
   box-shadow:
-    0 4px 24px rgba(0, 0, 0, 0.2),
-    inset 0 1px 0 rgba(255, 255, 255, 0.1);
+    0 4px 24px rgba(15, 26, 56, 0.3),
+    inset 0 1px 0 rgba(250, 249, 247, 0.08);
 }
 
 /* Subtle highlight effect at top edge */
@@ -70,7 +74,7 @@ body {
   background: linear-gradient(
     90deg,
     transparent 0%,
-    rgba(255, 255, 255, 0.2) 50%,
+    rgba(212, 175, 55, 0.25) 50%,
     transparent 100%
   );
   pointer-events: none;
@@ -120,13 +124,13 @@ body {
 }
 
 /* ============================================
-   Improved fadeIn animation with better iPad support
+   Page transition animations
    ============================================ */
 
 @keyframes fadeIn {
   0% {
     opacity: 0;
-    transform: translateY(20px) translateZ(0);
+    transform: translateY(16px) translateZ(0);
   }
   100% {
     opacity: 1;
@@ -135,14 +139,11 @@ body {
 }
 
 .animate-fadeIn {
-  animation: fadeIn 1s ease-out forwards;
-  /* Force hardware acceleration */
+  animation: fadeIn 0.8s ease-out forwards;
   -webkit-transform: translateZ(0);
   transform: translateZ(0);
   -webkit-backface-visibility: hidden;
   backface-visibility: hidden;
-  -webkit-perspective: 1000px;
-  perspective: 1000px;
 }
 
 /* ============================================
@@ -150,7 +151,6 @@ body {
    ============================================ */
 
 @supports (-webkit-touch-callout: none) {
-  /* iOS/iPad specific styles */
   body {
     height: 100%;
     overflow-x: hidden;

@@ -1,5 +1,5 @@
 'use client'
-import React, { useState, useEffect, useRef } from 'react';
+import React, { useState, useEffect, useRef, useMemo } from 'react';
 import Image from 'next/image';
 import CandleIcon from './CandleIcon';
 
@@ -18,13 +18,12 @@ interface PrayersResponse {
   generatedAt: string;
 }
 
-// Configuration for display strategy
 const DISPLAY_CONFIG = {
   prayersPerPage: 7,
-  pageDisplayTime: 18000, // 18 seconds
-  recentDays: 7, // Consider prayers from last 7 days as "recent"
-  instructionPageFrequency: 10, // Show instruction page every 10 pages
-  // Weighted strategy selection
+  pageDisplayTime: 18000, // 18 seconds visible
+  transitionDuration: 800, // ms for fade out/in
+  recentDays: 7,
+  instructionPageFrequency: 10,
   recentWeight: 0.70,
   olderWeight: 0.25,
   archiveWeight: 0.05,
@@ -40,28 +39,28 @@ export default function PrayerWallDisplay() {
   const [isLoading, setIsLoading] = useState(true);
   const [currentPage, setCurrentPage] = useState(0);
   const [displayStrategy, setDisplayStrategy] = useState<DisplayStrategy>('recent');
+  const [isVisible, setIsVisible] = useState(true);
   const pageCountRef = useRef(0);
 
-  // Separate wall prayers into recent and older
-  const separatePrayers = (prayers: Prayer[]) => {
+  // FIX: useMemo stabilizes array references so the timer interval
+  // doesn't tear down and recreate on every render
+  const { recent, older } = useMemo(() => {
     const cutoffDate = new Date();
     cutoffDate.setDate(cutoffDate.getDate() - DISPLAY_CONFIG.recentDays);
 
-    const recent: Prayer[] = [];
-    const older: Prayer[] = [];
+    const recentPrayers: Prayer[] = [];
+    const olderPrayers: Prayer[] = [];
 
-    prayers.forEach(prayer => {
+    wallPrayers.forEach(prayer => {
       if (new Date(prayer.created_at) > cutoffDate) {
-        recent.push(prayer);
+        recentPrayers.push(prayer);
       } else {
-        older.push(prayer);
+        olderPrayers.push(prayer);
       }
     });
 
-    return { recent, older };
-  };
-
-  const { recent, older } = separatePrayers(wallPrayers);
+    return { recent: recentPrayers, older: olderPrayers };
+  }, [wallPrayers]);
 
   useEffect(() => {
     const fetchPrayers = async () => {
@@ -87,77 +86,85 @@ export default function PrayerWallDisplay() {
     };
 
     fetchPrayers();
-    const interval = setInterval(fetchPrayers, 300000); // Refresh every 5 minutes
+    const interval = setInterval(fetchPrayers, 300000);
     return () => clearInterval(interval);
   }, []);
 
-  // Smart page rotation logic with useRef to fix interval dependency bug
+  // Stable page rotation with cross-fade transitions
   useEffect(() => {
     const timer = setInterval(() => {
-      pageCountRef.current += 1;
-      const currentCount = pageCountRef.current;
+      // Step 1: Fade out current content
+      setIsVisible(false);
 
-      // Show instruction page every N pages
-      if (currentCount > 0 && currentCount % DISPLAY_CONFIG.instructionPageFrequency === 0) {
-        setDisplayStrategy('instruction');
-        setCurrentPage(0);
-        return;
-      }
+      // Step 2: After fade-out completes, update content and fade back in
+      setTimeout(() => {
+        pageCountRef.current += 1;
+        const currentCount = pageCountRef.current;
 
-      // Weighted strategy selection
-      const rand = Math.random();
-      let selectedStrategy: DisplayStrategy;
-
-      if (rand < DISPLAY_CONFIG.recentWeight) {
-        selectedStrategy = 'recent';
-      } else if (rand < DISPLAY_CONFIG.recentWeight + DISPLAY_CONFIG.olderWeight) {
-        selectedStrategy = 'older';
-      } else {
-        selectedStrategy = 'archive';
-      }
-
-      // Get prayers for selected strategy
-      let prayersToShow: Prayer[] = [];
-      switch (selectedStrategy) {
-        case 'recent':
-          prayersToShow = recent;
-          break;
-        case 'older':
-          prayersToShow = older;
-          break;
-        case 'archive':
-          prayersToShow = archivePrayers;
-          break;
-      }
-
-      // Fallback if selected category is empty
-      if (prayersToShow.length === 0) {
-        if (recent.length > 0) {
-          selectedStrategy = 'recent';
-          prayersToShow = recent;
-        } else if (older.length > 0) {
-          selectedStrategy = 'older';
-          prayersToShow = older;
-        } else if (archivePrayers.length > 0) {
-          selectedStrategy = 'archive';
-          prayersToShow = archivePrayers;
-        } else {
+        // Show instruction page every N rotations
+        if (currentCount > 0 && currentCount % DISPLAY_CONFIG.instructionPageFrequency === 0) {
           setDisplayStrategy('instruction');
           setCurrentPage(0);
+          setIsVisible(true);
           return;
         }
-      }
 
-      setDisplayStrategy(selectedStrategy);
-      const maxPages = Math.ceil(prayersToShow.length / DISPLAY_CONFIG.prayersPerPage);
+        // Weighted strategy selection
+        const rand = Math.random();
+        let selectedStrategy: DisplayStrategy;
 
-      if (selectedStrategy === 'recent') {
-        // For recent prayers, cycle through pages sequentially
-        setCurrentPage(prev => (prev + 1) % maxPages);
-      } else {
-        // For older/archive prayers, show random pages for variety
-        setCurrentPage(Math.floor(Math.random() * maxPages));
-      }
+        if (rand < DISPLAY_CONFIG.recentWeight) {
+          selectedStrategy = 'recent';
+        } else if (rand < DISPLAY_CONFIG.recentWeight + DISPLAY_CONFIG.olderWeight) {
+          selectedStrategy = 'older';
+        } else {
+          selectedStrategy = 'archive';
+        }
+
+        // Get prayers for selected strategy
+        let prayersToShow: Prayer[] = [];
+        switch (selectedStrategy) {
+          case 'recent':
+            prayersToShow = recent;
+            break;
+          case 'older':
+            prayersToShow = older;
+            break;
+          case 'archive':
+            prayersToShow = archivePrayers;
+            break;
+        }
+
+        // Fallback if selected category is empty
+        if (prayersToShow.length === 0) {
+          if (recent.length > 0) {
+            selectedStrategy = 'recent';
+            prayersToShow = recent;
+          } else if (older.length > 0) {
+            selectedStrategy = 'older';
+            prayersToShow = older;
+          } else if (archivePrayers.length > 0) {
+            selectedStrategy = 'archive';
+            prayersToShow = archivePrayers;
+          } else {
+            setDisplayStrategy('instruction');
+            setCurrentPage(0);
+            setIsVisible(true);
+            return;
+          }
+        }
+
+        setDisplayStrategy(selectedStrategy);
+        const maxPages = Math.ceil(prayersToShow.length / DISPLAY_CONFIG.prayersPerPage);
+
+        if (selectedStrategy === 'recent') {
+          setCurrentPage(prev => (prev + 1) % maxPages);
+        } else {
+          setCurrentPage(Math.floor(Math.random() * maxPages));
+        }
+
+        setIsVisible(true);
+      }, DISPLAY_CONFIG.transitionDuration);
     }, DISPLAY_CONFIG.pageDisplayTime);
 
     return () => clearInterval(timer);
@@ -165,7 +172,7 @@ export default function PrayerWallDisplay() {
 
   if (isLoading && wallPrayers.length === 0) {
     return (
-      <div className="min-h-screen bg-gradient-to-br from-slate-950 via-violet-950 to-slate-900 flex items-center justify-center">
+      <div className="min-h-screen bg-gradient-to-br from-navy-dark via-navy to-navy-dark flex items-center justify-center">
         <div className="text-center">
           <Image
             src="/images/Saint-Helen-Submark-White.png"
@@ -175,7 +182,7 @@ export default function PrayerWallDisplay() {
             className="w-[500px] h-auto mx-auto mb-12"
             priority
           />
-          <div className="text-white text-4xl animate-pulse">
+          <div className="text-cream text-4xl font-heading animate-pulse">
             Loading prayers...
           </div>
         </div>
@@ -186,16 +193,16 @@ export default function PrayerWallDisplay() {
   const InstructionPage = () => (
     <div key="instruction-page" className="flex flex-col items-center justify-center h-full text-center px-12">
       <div className="liquid-glass rounded-2xl shadow-xl p-12 max-w-3xl">
-        <h2 className="text-5xl font-bold text-white mb-12">Submit Your Prayer Intention</h2>
-        <div className="space-y-8 text-2xl text-slate-100">
+        <h2 className="text-5xl font-bold text-cream font-heading mb-12">Submit Your Prayer Intention</h2>
+        <div className="space-y-8 text-2xl text-cream/90 font-body">
           <p className="mb-8 text-3xl">
             Use the iPad in the church to submit your prayer intention
           </p>
-          <p className="text-amber-300/80 text-3xl">
+          <p className="text-gold text-3xl">
             - or -
           </p>
           <p className="text-3xl">
-            Visit <span className="text-amber-300 font-semibold">prayerwall.sainthelen.org</span><br />
+            Visit <span className="text-gold font-semibold">prayerwall.sainthelen.org</span><br />
             on your mobile device
           </p>
           <div className="mt-12 flex justify-center">
@@ -203,17 +210,15 @@ export default function PrayerWallDisplay() {
           </div>
         </div>
 
-        {/* Show stats */}
-        <div className="mt-8 pt-8 border-t border-white/10">
-          <p className="text-slate-300 text-xl">
-            {totalWall + totalArchive} prayers shared • {recent.length} this week
+        <div className="mt-8 pt-8 border-t border-cream/10">
+          <p className="text-cream/60 text-xl font-body">
+            {totalWall + totalArchive} prayers shared &bull; {recent.length} this week
           </p>
         </div>
       </div>
     </div>
   );
 
-  // Get prayers to display based on current strategy
   const getPrayersToDisplay = () => {
     if (displayStrategy === 'instruction') return [];
 
@@ -240,7 +245,6 @@ export default function PrayerWallDisplay() {
 
   const displayedPrayers = getPrayersToDisplay();
 
-  // Helper function to get relative time
   const getRelativeTime = (dateString: string) => {
     const date = new Date(dateString);
     const now = new Date();
@@ -255,15 +259,14 @@ export default function PrayerWallDisplay() {
     return `${Math.floor(diffInDays / 365)}y ago`;
   };
 
-  // Get strategy label and color
   const getStrategyInfo = () => {
     switch (displayStrategy) {
       case 'recent':
-        return { label: 'Recent', color: 'bg-teal-400', textColor: 'text-teal-400' };
+        return { label: 'Recent Prayers', color: 'bg-gold', textColor: 'text-gold' };
       case 'older':
-        return { label: 'From the Archive', color: 'bg-sky-400', textColor: 'text-sky-400' };
+        return { label: 'From the Archive', color: 'bg-cream/60', textColor: 'text-cream/60' };
       case 'archive':
-        return { label: 'Jubilee Year of Hope', color: 'bg-amber-300', textColor: 'text-amber-300' };
+        return { label: 'Jubilee Year of Hope', color: 'bg-rust', textColor: 'text-rust-light' };
       default:
         return { label: '', color: '', textColor: '' };
     }
@@ -273,7 +276,7 @@ export default function PrayerWallDisplay() {
 
   return (
     <div
-      className="min-h-screen bg-gradient-to-br from-slate-950 via-violet-950 to-slate-900 overflow-hidden"
+      className="min-h-screen bg-gradient-to-br from-navy-dark via-navy to-navy-dark overflow-hidden"
       style={{
         height: '100vh',
         width: '100vw',
@@ -281,7 +284,7 @@ export default function PrayerWallDisplay() {
         WebkitFontSmoothing: 'antialiased'
       }}
     >
-      <header className="text-center py-8 liquid-glass-header border-b border-white/10">
+      <header className="text-center py-8 liquid-glass-header border-b border-cream/10">
         <div className="flex justify-center items-center gap-8 mb-6">
           <Image
             src="/images/Saint-Helen-Submark-White.png"
@@ -293,13 +296,13 @@ export default function PrayerWallDisplay() {
           />
         </div>
         <div className="flex items-center justify-center gap-4">
-          <h1 className="text-6xl font-bold text-white">
+          <h1 className="text-6xl font-bold text-cream font-heading">
             Prayer Wall
           </h1>
           {displayStrategy !== 'instruction' && (
             <div className="flex items-center gap-2">
               <div className={`w-3 h-3 rounded-full ${strategyInfo.color}`}></div>
-              <span className={`text-xl ${strategyInfo.textColor}`}>
+              <span className={`text-xl font-body ${strategyInfo.textColor}`}>
                 {strategyInfo.label}
               </span>
             </div>
@@ -312,26 +315,40 @@ export default function PrayerWallDisplay() {
         style={{ height: 'calc(100vh - 180px)' }}
       >
         {displayStrategy === 'instruction' ? (
-          <InstructionPage />
+          <div
+            className="h-full transition-opacity ease-in-out"
+            style={{
+              opacity: isVisible ? 1 : 0,
+              transitionDuration: `${DISPLAY_CONFIG.transitionDuration}ms`,
+            }}
+          >
+            <InstructionPage />
+          </div>
         ) : (
-          <div className="space-y-7 transition-opacity duration-1000 ease-in-out">
+          <div
+            className="space-y-6 transition-opacity ease-in-out"
+            style={{
+              opacity: isVisible ? 1 : 0,
+              transitionDuration: `${DISPLAY_CONFIG.transitionDuration}ms`,
+            }}
+          >
             {displayedPrayers.map((prayer, index) => (
               <div
                 key={`${prayer.id}-${currentPage}-${displayStrategy}`}
                 className="liquid-glass rounded-xl shadow-xl p-8 opacity-0 animate-fadeIn"
                 style={{
-                  animationDelay: `${index * 200}ms`,
+                  animationDelay: `${index * 150}ms`,
                   animationFillMode: 'forwards'
                 }}
               >
                 <div className="flex items-start gap-6">
                   <CandleIcon size="sm" />
                   <div className="flex-1">
-                    <p className="text-xl text-slate-100 mb-4 leading-relaxed">
+                    <p className="text-xl text-cream leading-relaxed font-body">
                       {prayer.content}
                     </p>
-                    <div className="flex justify-between items-center">
-                      <p className="text-lg text-slate-400">
+                    <div className="flex justify-between items-center mt-4">
+                      <p className="text-lg text-cream/40 font-body">
                         {new Date(prayer.created_at).toLocaleDateString('en-US', {
                           month: 'long',
                           day: 'numeric',
@@ -339,12 +356,12 @@ export default function PrayerWallDisplay() {
                           minute: '2-digit'
                         })}
                       </p>
-                      <span className={`text-sm px-3 py-1 rounded-full ${
+                      <span className={`text-sm px-3 py-1 rounded-full font-body ${
                         displayStrategy === 'archive'
-                          ? 'bg-amber-300/20 text-amber-300'
+                          ? 'bg-rust/20 text-rust-light'
                           : displayStrategy === 'recent'
-                            ? 'bg-teal-400/20 text-teal-400'
-                            : 'bg-sky-400/20 text-sky-400'
+                            ? 'bg-gold/20 text-gold'
+                            : 'bg-cream/10 text-cream/50'
                       }`}>
                         {displayStrategy === 'archive' ? 'Jubilee 2025' : getRelativeTime(prayer.created_at)}
                       </span>
