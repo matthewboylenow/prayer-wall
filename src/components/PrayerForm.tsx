@@ -2,16 +2,7 @@
 import { useState } from 'react'
 import Image from 'next/image'
 import CandleIcon from './CandleIcon'
-
-const BLOCKED_WORDS = [
-  'damn', 'hell', 'shit', 'fuck', 'ass', 'bitch', 'crap', 'piss',
-  'bastard', 'slut', 'whore', 'dick', 'cock', 'pussy'
-].map(word => word.toLowerCase());
-
-const containsBlockedWords = (text: string): boolean => {
-  const words = text.toLowerCase().split(/\s+/);
-  return words.some(word => BLOCKED_WORDS.includes(word));
-}
+import { containsBlockedWords } from '@/lib/moderation'
 
 export default function PrayerForm() {
   const [prayer, setPrayer] = useState('')

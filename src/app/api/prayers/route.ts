@@ -1,5 +1,5 @@
 import { NextResponse } from 'next/server'
-import { supabase } from '@/lib/supabase'
+import { sql, type PrayerRow } from '@/lib/db'
 
 export const dynamic = 'force-dynamic'
 
@@ -8,56 +8,57 @@ const ARCHIVE_SAMPLE_SIZE = 120
 
 export async function GET() {
   try {
-    // Get wall prayers (prayer_wall season) - most recent first
-    const { data: wallData, error: wallError, count: wallCount } = await supabase
-      .from('prayers')
-      .select('*', { count: 'exact' })
-      .eq('season', 'prayer_wall')
-      .order('created_at', { ascending: false })
-      .limit(WALL_LIMIT)
+    const wallRows = (await sql`
+      SELECT id, content, created_at, season
+      FROM prayers
+      WHERE season = 'prayer_wall'
+      ORDER BY created_at DESC
+      LIMIT ${WALL_LIMIT}
+    `) as PrayerRow[]
 
-    if (wallError) throw wallError
+    const archiveCountRow = (await sql`
+      SELECT COUNT(*)::int AS count
+      FROM prayers
+      WHERE season = 'jubilee_2025'
+    `) as Array<{ count: number }>
+    const totalArchive = archiveCountRow[0]?.count ?? 0
 
-    // Get total archive count for random offset calculation
-    const { count: archiveCount, error: archiveCountError } = await supabase
-      .from('prayers')
-      .select('*', { count: 'exact', head: true })
-      .eq('season', 'jubilee_2025')
-
-    if (archiveCountError) throw archiveCountError
-
-    // Fetch archive sample with random offset for variety
-    let archiveSample: typeof wallData = []
-    const totalArchive = archiveCount || 0
-
+    let archiveSample: PrayerRow[] = []
     if (totalArchive > 0) {
-      // Calculate a random offset for variety
       const maxOffset = Math.max(0, totalArchive - ARCHIVE_SAMPLE_SIZE)
       const randomOffset = Math.floor(Math.random() * (maxOffset + 1))
 
-      const { data: archiveData, error: archiveError } = await supabase
-        .from('prayers')
-        .select('*')
-        .eq('season', 'jubilee_2025')
-        .order('created_at', { ascending: false })
-        .range(randomOffset, randomOffset + ARCHIVE_SAMPLE_SIZE - 1)
-
-      if (archiveError) throw archiveError
-      archiveSample = archiveData || []
+      archiveSample = (await sql`
+        SELECT id, content, created_at, season
+        FROM prayers
+        WHERE season = 'jubilee_2025'
+        ORDER BY created_at DESC
+        OFFSET ${randomOffset}
+        LIMIT ${ARCHIVE_SAMPLE_SIZE}
+      `) as PrayerRow[]
     }
 
-    return NextResponse.json({
-      wall: wallData || [],
-      archiveSample,
-      totalWall: wallCount || 0,
-      totalArchive,
-      generatedAt: new Date().toISOString()
-    }, {
-      headers: {
-        'Cache-Control': 's-maxage=300, stale-while-revalidate',
-        'Access-Control-Allow-Origin': '*'
+    const totalWallRow = (await sql`
+      SELECT COUNT(*)::int AS count
+      FROM prayers
+      WHERE season = 'prayer_wall'
+    `) as Array<{ count: number }>
+
+    return NextResponse.json(
+      {
+        wall: wallRows,
+        archiveSample,
+        totalWall: totalWallRow[0]?.count ?? 0,
+        totalArchive,
+        generatedAt: new Date().toISOString(),
+      },
+      {
+        headers: {
+          'Cache-Control': 's-maxage=300, stale-while-revalidate',
+          'Access-Control-Allow-Origin': '*',
+        },
       }
-    })
+    )
   } catch (error) {
     console.error('Error fetching prayers:', error)
     return NextResponse.json({ error: 'Failed to fetch prayers' }, { status: 500 })
