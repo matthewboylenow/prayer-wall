@@ -11,11 +11,10 @@
 //
 // What it does:
 //   1. Ensures the `prayers` schema exists on Neon.
-//   2. Pages through every row in Supabase (1000 at a time).
+//   2. Pages through every row in Supabase via its REST API (1000 at a time).
 //   3. Bulk-inserts into Neon, preserving id / content / created_at / season.
 //   4. Prints a summary of inserted vs. skipped rows.
 
-import { createClient } from '@supabase/supabase-js'
 import { neon } from '@neondatabase/serverless'
 
 const SUPABASE_URL = process.env.SUPABASE_URL
@@ -31,10 +30,10 @@ if (!DATABASE_URL) {
   process.exit(1)
 }
 
-const supabase = createClient(SUPABASE_URL, SUPABASE_KEY)
 const sql = neon(DATABASE_URL)
 
 const PAGE_SIZE = 1000
+const SUPABASE_REST = `${SUPABASE_URL.replace(/\/$/, '')}/rest/v1/prayers`
 
 async function ensureSchema() {
   console.log('Ensuring Neon schema...')
@@ -55,13 +54,21 @@ async function ensureSchema() {
 }
 
 async function fetchSupabasePage(from, to) {
-  const { data, error } = await supabase
-    .from('prayers')
-    .select('id, content, created_at, season')
-    .order('created_at', { ascending: true })
-    .range(from, to)
-  if (error) throw error
-  return data ?? []
+  const url = `${SUPABASE_REST}?select=id,content,created_at,season&order=created_at.asc`
+  const res = await fetch(url, {
+    headers: {
+      apikey: SUPABASE_KEY,
+      Authorization: `Bearer ${SUPABASE_KEY}`,
+      Range: `${from}-${to}`,
+      'Range-Unit': 'items',
+      Prefer: 'count=exact',
+    },
+  })
+  if (!res.ok && res.status !== 206) {
+    const body = await res.text()
+    throw new Error(`Supabase fetch failed ${res.status}: ${body}`)
+  }
+  return res.json()
 }
 
 async function insertBatch(rows) {
