@@ -1,5 +1,5 @@
 'use client'
-import React, { useState, useEffect, useRef, useMemo } from 'react';
+import React, { useState, useEffect, useRef } from 'react';
 import Image from 'next/image';
 import CandleIcon from './CandleIcon';
 
@@ -20,16 +20,14 @@ interface PrayersResponse {
 
 const DISPLAY_CONFIG = {
   prayersPerPage: 7,
-  pageDisplayTime: 18000, // 18 seconds visible
-  transitionDuration: 800, // ms for fade out/in
-  recentDays: 7,
+  pageDisplayTime: 18000,
+  transitionDuration: 800,
+  refetchIntervalMs: 5 * 60 * 1000,
   instructionPageFrequency: 10,
-  recentWeight: 0.70,
-  olderWeight: 0.25,
   archiveWeight: 0.05,
 };
 
-type DisplayStrategy = 'recent' | 'older' | 'archive' | 'instruction';
+type DisplayStrategy = 'wall' | 'archive' | 'instruction';
 
 export default function PrayerWallDisplay() {
   const [wallPrayers, setWallPrayers] = useState<Prayer[]>([]);
@@ -38,42 +36,33 @@ export default function PrayerWallDisplay() {
   const [totalArchive, setTotalArchive] = useState(0);
   const [isLoading, setIsLoading] = useState(true);
   const [currentPage, setCurrentPage] = useState(0);
-  const [displayStrategy, setDisplayStrategy] = useState<DisplayStrategy>('recent');
+  const [displayStrategy, setDisplayStrategy] = useState<DisplayStrategy>('wall');
   const [isVisible, setIsVisible] = useState(true);
+
   const pageCountRef = useRef(0);
+  const wallRef = useRef<Prayer[]>([]);
+  const archiveRef = useRef<Prayer[]>([]);
+  const wallPageRef = useRef(0);
 
-  // FIX: useMemo stabilizes array references so the timer interval
-  // doesn't tear down and recreate on every render
-  const { recent, older } = useMemo(() => {
-    const cutoffDate = new Date();
-    cutoffDate.setDate(cutoffDate.getDate() - DISPLAY_CONFIG.recentDays);
-
-    const recentPrayers: Prayer[] = [];
-    const olderPrayers: Prayer[] = [];
-
-    wallPrayers.forEach(prayer => {
-      if (new Date(prayer.created_at) > cutoffDate) {
-        recentPrayers.push(prayer);
-      } else {
-        olderPrayers.push(prayer);
-      }
-    });
-
-    return { recent: recentPrayers, older: olderPrayers };
+  useEffect(() => {
+    wallRef.current = wallPrayers;
   }, [wallPrayers]);
 
   useEffect(() => {
-    const fetchPrayers = async () => {
-      try {
-        setIsLoading(true);
-        const response = await fetch('/api/prayers');
+    archiveRef.current = archivePrayers;
+  }, [archivePrayers]);
 
+  useEffect(() => {
+    let cancelled = false;
+    const fetchPrayers = async (initial: boolean) => {
+      try {
+        const response = await fetch('/api/prayers', { cache: 'no-store' });
         if (!response.ok) {
-          console.error('Failed to fetch prayers');
+          console.error('Failed to fetch prayers', response.status);
           return;
         }
-
         const data: PrayersResponse = await response.json();
+        if (cancelled) return;
         setWallPrayers(data.wall);
         setArchivePrayers(data.archiveSample);
         setTotalWall(data.totalWall);
@@ -81,94 +70,64 @@ export default function PrayerWallDisplay() {
       } catch (err) {
         console.error('Error fetching prayers:', err);
       } finally {
-        setIsLoading(false);
+        if (initial && !cancelled) setIsLoading(false);
       }
     };
 
-    fetchPrayers();
-    const interval = setInterval(fetchPrayers, 300000);
-    return () => clearInterval(interval);
+    fetchPrayers(true);
+    const interval = setInterval(() => fetchPrayers(false), DISPLAY_CONFIG.refetchIntervalMs);
+    return () => {
+      cancelled = true;
+      clearInterval(interval);
+    };
   }, []);
 
-  // Stable page rotation with cross-fade transitions
   useEffect(() => {
-    const timer = setInterval(() => {
-      // Step 1: Fade out current content
+    const tick = () => {
       setIsVisible(false);
 
-      // Step 2: After fade-out completes, update content and fade back in
       setTimeout(() => {
         pageCountRef.current += 1;
-        const currentCount = pageCountRef.current;
+        const count = pageCountRef.current;
+        const wall = wallRef.current;
+        const archive = archiveRef.current;
 
-        // Show instruction page every N rotations
-        if (currentCount > 0 && currentCount % DISPLAY_CONFIG.instructionPageFrequency === 0) {
+        if (count > 0 && count % DISPLAY_CONFIG.instructionPageFrequency === 0) {
           setDisplayStrategy('instruction');
           setCurrentPage(0);
           setIsVisible(true);
           return;
         }
 
-        // Weighted strategy selection
-        const rand = Math.random();
-        let selectedStrategy: DisplayStrategy;
+        const wantArchive =
+          archive.length > 0 && Math.random() < DISPLAY_CONFIG.archiveWeight;
 
-        if (rand < DISPLAY_CONFIG.recentWeight) {
-          selectedStrategy = 'recent';
-        } else if (rand < DISPLAY_CONFIG.recentWeight + DISPLAY_CONFIG.olderWeight) {
-          selectedStrategy = 'older';
-        } else {
-          selectedStrategy = 'archive';
-        }
-
-        // Get prayers for selected strategy
-        let prayersToShow: Prayer[] = [];
-        switch (selectedStrategy) {
-          case 'recent':
-            prayersToShow = recent;
-            break;
-          case 'older':
-            prayersToShow = older;
-            break;
-          case 'archive':
-            prayersToShow = archivePrayers;
-            break;
-        }
-
-        // Fallback if selected category is empty
-        if (prayersToShow.length === 0) {
-          if (recent.length > 0) {
-            selectedStrategy = 'recent';
-            prayersToShow = recent;
-          } else if (older.length > 0) {
-            selectedStrategy = 'older';
-            prayersToShow = older;
-          } else if (archivePrayers.length > 0) {
-            selectedStrategy = 'archive';
-            prayersToShow = archivePrayers;
-          } else {
-            setDisplayStrategy('instruction');
-            setCurrentPage(0);
-            setIsVisible(true);
-            return;
-          }
-        }
-
-        setDisplayStrategy(selectedStrategy);
-        const maxPages = Math.ceil(prayersToShow.length / DISPLAY_CONFIG.prayersPerPage);
-
-        if (selectedStrategy === 'recent') {
-          setCurrentPage(prev => (prev + 1) % maxPages);
-        } else {
+        if (wantArchive) {
+          const maxPages = Math.max(1, Math.ceil(archive.length / DISPLAY_CONFIG.prayersPerPage));
+          setDisplayStrategy('archive');
           setCurrentPage(Math.floor(Math.random() * maxPages));
+          setIsVisible(true);
+          return;
         }
 
+        if (wall.length === 0) {
+          setDisplayStrategy('instruction');
+          setCurrentPage(0);
+          setIsVisible(true);
+          return;
+        }
+
+        const maxPages = Math.max(1, Math.ceil(wall.length / DISPLAY_CONFIG.prayersPerPage));
+        wallPageRef.current = (wallPageRef.current + 1) % maxPages;
+        setDisplayStrategy('wall');
+        setCurrentPage(wallPageRef.current);
         setIsVisible(true);
       }, DISPLAY_CONFIG.transitionDuration);
-    }, DISPLAY_CONFIG.pageDisplayTime);
+    };
 
+    const timer = setInterval(tick, DISPLAY_CONFIG.pageDisplayTime);
     return () => clearInterval(timer);
-  }, [recent, older, archivePrayers]);
+  }, []);
 
   if (isLoading && wallPrayers.length === 0) {
     return (
@@ -212,35 +171,18 @@ export default function PrayerWallDisplay() {
 
         <div className="mt-8 pt-8 border-t border-cream/10">
           <p className="text-cream/60 text-xl font-body">
-            {totalWall + totalArchive} prayers shared &bull; {recent.length} this week
+            {totalWall + totalArchive} prayers shared
           </p>
         </div>
       </div>
     </div>
   );
 
-  const getPrayersToDisplay = () => {
+  const getPrayersToDisplay = (): Prayer[] => {
     if (displayStrategy === 'instruction') return [];
-
-    let prayersToShow: Prayer[];
-    switch (displayStrategy) {
-      case 'recent':
-        prayersToShow = recent;
-        break;
-      case 'older':
-        prayersToShow = older;
-        break;
-      case 'archive':
-        prayersToShow = archivePrayers;
-        break;
-      default:
-        prayersToShow = [];
-    }
-
+    const source = displayStrategy === 'archive' ? archivePrayers : wallPrayers;
     const startIndex = currentPage * DISPLAY_CONFIG.prayersPerPage;
-    const endIndex = startIndex + DISPLAY_CONFIG.prayersPerPage;
-
-    return prayersToShow.slice(startIndex, endIndex);
+    return source.slice(startIndex, startIndex + DISPLAY_CONFIG.prayersPerPage);
   };
 
   const displayedPrayers = getPrayersToDisplay();
@@ -259,20 +201,12 @@ export default function PrayerWallDisplay() {
     return `${Math.floor(diffInDays / 365)}y ago`;
   };
 
-  const getStrategyInfo = () => {
-    switch (displayStrategy) {
-      case 'recent':
-        return { label: 'Recent Prayers', color: 'bg-gold', textColor: 'text-gold' };
-      case 'older':
-        return { label: 'From the Archive', color: 'bg-cream/60', textColor: 'text-cream/60' };
-      case 'archive':
-        return { label: 'Jubilee Year of Hope', color: 'bg-rust', textColor: 'text-rust-light' };
-      default:
-        return { label: '', color: '', textColor: '' };
-    }
-  };
-
-  const strategyInfo = getStrategyInfo();
+  const strategyInfo =
+    displayStrategy === 'archive'
+      ? { label: 'From the Jubilee Year of Hope', color: 'bg-rust', textColor: 'text-rust-light' }
+      : displayStrategy === 'wall'
+        ? { label: 'Prayer Wall', color: 'bg-gold', textColor: 'text-gold' }
+        : { label: '', color: '', textColor: '' };
 
   return (
     <div
@@ -359,9 +293,7 @@ export default function PrayerWallDisplay() {
                       <span className={`text-sm px-3 py-1 rounded-full font-body ${
                         displayStrategy === 'archive'
                           ? 'bg-rust/20 text-rust-light'
-                          : displayStrategy === 'recent'
-                            ? 'bg-gold/20 text-gold'
-                            : 'bg-cream/10 text-cream/50'
+                          : 'bg-gold/20 text-gold'
                       }`}>
                         {displayStrategy === 'archive' ? 'Jubilee 2025' : getRelativeTime(prayer.created_at)}
                       </span>

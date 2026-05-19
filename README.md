@@ -1,11 +1,11 @@
 # Saint Helen Prayer Wall
 
-A digital prayer wall for Saint Helen Parish, built with Next.js and Supabase.
+A digital prayer wall for Saint Helen Parish, built with Next.js and Neon Postgres.
 
 ## Features
 
 - Submit prayer intentions via web form
-- Display rotating prayers on a vertical display screen
+- Vertical display screen that rotates indefinitely through prayers
 - Archive support for historical prayers (Jubilee 2025)
 - Liquid glass UI with animated candle motifs
 - Mobile-friendly submission interface
@@ -14,46 +14,52 @@ A digital prayer wall for Saint Helen Parish, built with Next.js and Supabase.
 
 ### Prerequisites
 
-- Node.js 18+
-- Supabase account
+- Node.js 20+
+- A Neon Postgres database
 
 ### Environment Variables
 
-Create a `.env.local` file with:
+Create a `.env.local` file (see `.env.example`):
 
 ```env
-SUPABASE_URL=your_supabase_project_url
-SUPABASE_ANON_KEY=your_supabase_anon_key
+DATABASE_URL=postgres://user:password@host/dbname?sslmode=require
 ```
 
-### Database Setup
+`SUPABASE_URL` and `SUPABASE_ANON_KEY` are only needed if you still need to run
+the one-shot data migration script from the old Supabase database.
 
-Run the following SQL in your Supabase SQL editor:
+### Database Schema
+
+The migration script creates the schema automatically. If you want to run it
+manually in Neon, the SQL is:
 
 ```sql
--- Create prayers table
-create table if not exists public.prayers (
-  id uuid default gen_random_uuid() primary key,
-  content text not null,
-  created_at timestamp with time zone default now(),
-  season text default 'prayer_wall'
+CREATE EXTENSION IF NOT EXISTS pgcrypto;
+
+CREATE TABLE IF NOT EXISTS prayers (
+  id uuid PRIMARY KEY DEFAULT gen_random_uuid(),
+  content text NOT NULL,
+  created_at timestamptz NOT NULL DEFAULT now(),
+  season text NOT NULL DEFAULT 'prayer_wall'
 );
 
--- Create index for efficient querying
-create index if not exists prayers_season_created_at_idx
-on public.prayers (season, created_at desc);
-
--- Enable Row Level Security
-alter table public.prayers enable row level security;
-
--- Allow public read access
-create policy "Allow public read" on public.prayers
-  for select using (true);
-
--- Allow public insert
-create policy "Allow public insert" on public.prayers
-  for insert with check (true);
+CREATE INDEX IF NOT EXISTS prayers_season_created_at_idx
+  ON prayers (season, created_at DESC);
 ```
+
+### Migrating from Supabase to Neon
+
+Put both sets of credentials in `.env.local` and run once:
+
+```bash
+npm install
+npm run migrate:supabase-to-neon
+```
+
+The script is idempotent (it uses `ON CONFLICT (id) DO NOTHING`), so it is safe
+to re-run. It preserves `id`, `content`, `created_at`, and `season` exactly.
+After it succeeds and you've verified the data in Neon, you can remove the
+Supabase env vars from Vercel.
 
 ### Installation
 
@@ -72,15 +78,19 @@ npm run dev
 - `GET /api/prayers` - Fetch prayers (wall + archive sample)
 - `POST /api/submit-prayer` - Submit a new prayer
 
-## Display Configuration
+## Display Rotation
 
-The display rotates through prayers with weighted strategy:
-- 70% Recent prayers (last 7 days)
-- 25% Older prayers from current wall
-- 5% Archive prayers (Jubilee 2025)
+The display paginates sequentially through all current `prayer_wall` prayers
+(7 per page, 18 seconds per page). Roughly every 10 rotations it shows an
+instruction page. Roughly 5% of rotations spotlight a random page from the
+`jubilee_2025` archive.
+
+The data is re-fetched every 5 minutes so newly submitted prayers appear
+without reloading the page.
 
 ## Seasons
 
 Prayers are tagged with a `season` field:
+
 - `prayer_wall` - Current ongoing wall (default for new submissions)
 - `jubilee_2025` - Archive from Jubilee Year of Hope

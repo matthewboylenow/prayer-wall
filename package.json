@@ -6,9 +6,11 @@
     "dev": "next dev",
     "build": "next build",
     "start": "next start",
-    "lint": "next lint"
+    "lint": "next lint",
+    "migrate:supabase-to-neon": "node --env-file=.env.local scripts/migrate-supabase-to-neon.mjs"
   },
   "dependencies": {
+    "@neondatabase/serverless": "^0.10.4",
     "@shadcn/ui": "^0.0.4",
     "@supabase/supabase-js": "^2.49.1",
     "next": "^15.5.9",
