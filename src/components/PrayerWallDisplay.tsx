@@ -39,6 +39,7 @@ type DisplayStrategy = 'wall' | 'archive' | 'instruction'
 
 /** Text size steps down for long prayers so nothing is ever clipped. */
 function prayerFontSize(content: string): number {
+  if (content.length > 400) return 18
   if (content.length > 220) return 20
   if (content.length > 150) return 22
   if (content.length > 80) return 24

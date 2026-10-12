@@ -110,12 +110,13 @@ function findMatches(re: RegExp, texts: string[]): string[] {
   return Array.from(hits)
 }
 
+// Looks inside words ("fuckyou"), but never across a word boundary: squashing
+// spaces would turn "who recently" into a hit for "whore".
 function findSubstrings(list: string[], texts: string[]): string[] {
   const hits = new Set<string>()
   for (const t of texts) {
-    const squashed = t.replace(/\s+/g, '')
     for (const s of list) {
-      if (squashed.includes(s)) hits.add(s)
+      if (t.includes(s)) hits.add(s)
     }
   }
   return Array.from(hits)
