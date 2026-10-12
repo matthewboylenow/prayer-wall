@@ -67,8 +67,19 @@ h1, h2, h3, h4, h5, h6 {
   animation: fadeIn 0.6s ease-out forwards;
 }
 
+/* Votive flame: a slow breathe in opacity only */
+@keyframes flame-breathe {
+  0%, 100% { opacity: 1; }
+  50% { opacity: 0.72; }
+}
+
+.candle-flame {
+  animation: flame-breathe 4.5s ease-in-out infinite;
+}
+
 @media (prefers-reduced-motion: reduce) {
   .animate-fadeIn { animation: none; opacity: 1; }
+  .candle-flame { animation: none; }
 }
 
 /* iPad: keep inputs at 16px+ so Safari does not zoom on focus */

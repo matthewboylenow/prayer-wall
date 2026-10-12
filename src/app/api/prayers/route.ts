@@ -51,12 +51,25 @@ export async function GET() {
       WHERE season = 'prayer_wall' AND status = 'approved'
     `) as Array<{ count: number }>
 
+    // Candles lit today and this week, in the parish's own time zone.
+    const litRow = (await sql`
+      SELECT
+        COUNT(*) FILTER (
+          WHERE (created_at AT TIME ZONE 'America/New_York')::date = (now() AT TIME ZONE 'America/New_York')::date
+        )::int AS today,
+        COUNT(*) FILTER (WHERE created_at > now() - interval '7 days')::int AS week
+      FROM prayers
+      WHERE season = 'prayer_wall' AND status = 'approved'
+    `) as Array<{ today: number; week: number }>
+
     return NextResponse.json(
       {
         wall: wallRows,
         archiveSample,
         totalWall: totalWallRow[0]?.count ?? 0,
         totalArchive,
+        litToday: litRow[0]?.today ?? 0,
+        litThisWeek: litRow[0]?.week ?? 0,
         generatedAt: new Date().toISOString(),
       },
       // No CDN caching: when staff hide a prayer it must leave the screen on

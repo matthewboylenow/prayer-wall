@@ -15,6 +15,8 @@ interface PrayersResponse {
   archiveSample: Prayer[]
   totalWall: number
   totalArchive: number
+  litToday: number
+  litThisWeek: number
   generatedAt: string
 }
 
@@ -25,10 +27,12 @@ const DISPLAY_CONFIG = {
   instructionPageFrequency: 10,
   archiveWeight: 0.05,
   /** Height budget per card row; cards per page is derived from this. */
-  rowHeight: 215,
+  rowHeight: 200,
   rowGap: 16,
   /** Vertical space inside <main> that is not the grid: padding + eyebrow. */
   mainChrome: 112,
+  /** Most candles drawn in the footer rack; the count in words is exact. */
+  rackMax: 36,
 }
 
 type DisplayStrategy = 'wall' | 'archive' | 'instruction'
@@ -53,6 +57,7 @@ export default function PrayerWallDisplay() {
   const [archivePrayers, setArchivePrayers] = useState<Prayer[]>([])
   const [totalWall, setTotalWall] = useState(0)
   const [totalArchive, setTotalArchive] = useState(0)
+  const [lit, setLit] = useState({ today: 0, week: 0 })
   const [isLoading, setIsLoading] = useState(true)
   const [currentPage, setCurrentPage] = useState(0)
   const [displayStrategy, setDisplayStrategy] = useState<DisplayStrategy>('wall')
@@ -112,6 +117,7 @@ export default function PrayerWallDisplay() {
         setArchivePrayers(data.archiveSample)
         setTotalWall(data.totalWall)
         setTotalArchive(data.totalArchive)
+        setLit({ today: data.litToday ?? 0, week: data.litThisWeek ?? 0 })
         if (initial && data.wall.length === 0) setDisplayStrategy('instruction')
       } catch (err) {
         console.error('Error fetching prayers:', err)
@@ -233,22 +239,25 @@ export default function PrayerWallDisplay() {
               {displayedPrayers.map((prayer, index) => (
                 <article
                   key={`${prayer.id}-${currentPage}-${displayStrategy}`}
-                  className="flex min-h-0 flex-col justify-center overflow-hidden rounded-[14px] border border-line bg-paper px-8 py-5 text-ink opacity-0 animate-fadeIn"
+                  className="flex min-h-0 items-center gap-7 overflow-hidden rounded-[14px] border border-white/10 bg-navy px-7 py-5 text-cream opacity-0 animate-fadeIn"
                   style={{ animationDelay: `${index * 90}ms`, animationFillMode: 'forwards' }}
                 >
-                  <p
-                    className="font-heading leading-[1.45]"
-                    style={{
-                      fontSize: prayerFontSize(prayer.content),
-                      display: '-webkit-box',
-                      WebkitLineClamp: 6,
-                      WebkitBoxOrient: 'vertical',
-                      overflow: 'hidden',
-                    }}
-                  >
-                    {prayer.content}
-                  </p>
-                  <p className="mt-2 font-body text-[16px] text-muted">{formatDate(prayer.created_at)}</p>
+                  <CandleIcon size="md" delay={(index * 0.9) % 4.5} />
+                  <div className="min-w-0 flex-1">
+                    <p
+                      className="font-heading leading-[1.45]"
+                      style={{
+                        fontSize: prayerFontSize(prayer.content),
+                        display: '-webkit-box',
+                        WebkitLineClamp: 6,
+                        WebkitBoxOrient: 'vertical',
+                        overflow: 'hidden',
+                      }}
+                    >
+                      {prayer.content}
+                    </p>
+                    <p className="mt-2 font-body text-[16px] text-cream/55">{formatDate(prayer.created_at)}</p>
+                  </div>
                 </article>
               ))}
             </div>
@@ -256,8 +265,8 @@ export default function PrayerWallDisplay() {
         )}
       </main>
 
-      <footer className="shrink-0 border-t border-white/10 px-12 py-5 text-center font-body text-[22px] text-cream/70">
-        Share your intention at <span className="font-semibold text-white">prayerwall.sainthelen.org</span> or on the iPad in the church
+      <footer className="shrink-0 border-t border-white/10 px-12 pb-5 pt-4 text-center">
+        <CandleRack today={lit.today} week={lit.week} />
       </footer>
     </div>
   )
@@ -265,22 +274,52 @@ export default function PrayerWallDisplay() {
 
 function InstructionPage({ total }: { total: number }) {
   return (
-    <div className="w-full max-w-3xl rounded-[14px] border border-line bg-paper px-14 py-14 text-center text-ink">
+    <div className="w-full max-w-3xl rounded-[14px] border border-white/10 bg-navy px-14 py-14 text-center text-cream">
       <CandleIcon size="lg" className="mx-auto mb-8" />
       <p className="eyebrow mb-4 text-gold">Saint Helen</p>
-      <h2 className="font-heading text-[44px] font-bold leading-tight text-navy">
-        Share your prayer intention
+      <h2 className="font-heading text-[44px] font-bold leading-tight text-white">
+        Light a candle for someone
       </h2>
-      <p className="mx-auto mt-6 max-w-xl font-body text-[26px] leading-relaxed text-ink/80">
-        Use the iPad in the church, or visit
+      <p className="mx-auto mt-6 max-w-xl font-body text-[26px] leading-relaxed text-cream/85">
+        Share your prayer intention on the iPad in the church, or visit
       </p>
-      <p className="mt-2 font-body text-[30px] font-semibold text-rust-solid">prayerwall.sainthelen.org</p>
-      <p className="mt-4 font-body text-[26px] leading-relaxed text-ink/80">on your phone.</p>
+      <p className="mt-2 font-body text-[30px] font-semibold text-gold">prayerwall.sainthelen.org</p>
+      <p className="mt-4 font-body text-[26px] leading-relaxed text-cream/85">on your phone.</p>
       {total > 0 && (
-        <p className="mt-10 border-t border-line pt-6 font-body text-[20px] text-muted">
-          {total.toLocaleString('en-US')} prayers shared by our parish
+        <p className="mt-10 border-t border-white/10 pt-6 font-body text-[20px] text-cream/60">
+          {total.toLocaleString('en-US')} candles lit by our parish
         </p>
       )}
+    </div>
+  )
+}
+
+function CandleRack({ today, week }: { today: number; week: number }) {
+  const count = today > 0 ? today : week
+  const period = today > 0 ? 'today' : 'this week'
+  const drawn = Math.min(count, DISPLAY_CONFIG.rackMax)
+  return (
+    <div>
+      {drawn > 0 && (
+        <div className="mb-3 flex items-end justify-center gap-[7px]" aria-hidden="true">
+          {Array.from({ length: drawn }, (_, i) => (
+            <CandleIcon key={i} size="sm" delay={(i * 0.61) % 4.5} />
+          ))}
+        </div>
+      )}
+      <p className="font-body text-[21px] text-cream/70">
+        {count > 0 ? (
+          <>
+            <span className="font-semibold text-white">{count.toLocaleString('en-US')}</span>{' '}
+            {count === 1 ? 'candle' : 'candles'} lit {period} · Light yours at{' '}
+            <span className="font-semibold text-white">prayerwall.sainthelen.org</span>
+          </>
+        ) : (
+          <>
+            Light a candle at <span className="font-semibold text-white">prayerwall.sainthelen.org</span> or on the iPad in the church
+          </>
+        )}
+      </p>
     </div>
   )
 }
