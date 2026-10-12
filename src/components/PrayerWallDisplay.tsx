@@ -239,10 +239,10 @@ export default function PrayerWallDisplay() {
               {displayedPrayers.map((prayer, index) => (
                 <article
                   key={`${prayer.id}-${currentPage}-${displayStrategy}`}
-                  className="flex min-h-0 items-center gap-7 overflow-hidden rounded-[14px] border border-white/10 bg-navy px-7 py-5 text-cream opacity-0 animate-fadeIn"
+                  className="flex min-h-0 items-center gap-6 overflow-hidden rounded-[14px] border border-white/10 bg-navy px-7 py-5 text-cream opacity-0 animate-fadeIn"
                   style={{ animationDelay: `${index * 90}ms`, animationFillMode: 'forwards' }}
                 >
-                  <CandleIcon size="md" delay={(index * 0.9) % 4.5} />
+                  <CandleIcon size="md" delay={(index * 1.3) % 4.1} />
                   <div className="min-w-0 flex-1">
                     <p
                       className="font-heading leading-[1.45]"
@@ -303,7 +303,7 @@ function CandleRack({ today, week }: { today: number; week: number }) {
       {drawn > 0 && (
         <div className="mb-3 flex items-end justify-center gap-[7px]" aria-hidden="true">
           {Array.from({ length: drawn }, (_, i) => (
-            <CandleIcon key={i} size="sm" delay={(i * 0.61) % 4.5} />
+            <CandleIcon key={i} size="sm" delay={(i * 1.37) % 4.1} />
           ))}
         </div>
       )}

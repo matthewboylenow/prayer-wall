@@ -67,19 +67,37 @@ h1, h2, h3, h4, h5, h6 {
   animation: fadeIn 0.6s ease-out forwards;
 }
 
-/* Votive flame: a slow breathe in opacity only */
-@keyframes flame-breathe {
-  0%, 100% { opacity: 1; }
-  50% { opacity: 0.72; }
+/* Votive flame. Sway and stretch run on different periods so the motion
+   does not read as a loop; the glow breathes with it. */
+@keyframes candle-sway {
+  0%   { transform: rotate(-3deg); }
+  30%  { transform: rotate(2deg); }
+  55%  { transform: rotate(-1.2deg); }
+  80%  { transform: rotate(3deg); }
+  100% { transform: rotate(-3deg); }
 }
 
-.candle-flame {
-  animation: flame-breathe 4.5s ease-in-out infinite;
+@keyframes candle-stretch {
+  0%   { transform: scale(1, 1); }
+  28%  { transform: scale(0.95, 1.07); }
+  52%  { transform: scale(1.03, 0.96); }
+  76%  { transform: scale(0.97, 1.04); }
+  100% { transform: scale(1, 1); }
 }
+
+@keyframes candle-glow {
+  0%, 100% { opacity: 0.75; }
+  40%      { opacity: 1; }
+  70%      { opacity: 0.6; }
+}
+
+.candle-sway    { animation: candle-sway 4.1s ease-in-out infinite; }
+.candle-stretch { animation: candle-stretch 2.7s ease-in-out infinite; }
+.candle-glow    { animation: candle-glow 3.3s ease-in-out infinite; }
 
 @media (prefers-reduced-motion: reduce) {
   .animate-fadeIn { animation: none; opacity: 1; }
-  .candle-flame { animation: none; }
+  .candle-sway, .candle-stretch, .candle-glow { animation: none; }
 }
 
 /* iPad: keep inputs at 16px+ so Safari does not zoom on focus */
