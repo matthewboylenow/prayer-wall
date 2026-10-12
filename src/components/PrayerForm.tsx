@@ -1,132 +1,128 @@
 'use client'
-import { useState } from 'react'
+import { useEffect, useRef, useState } from 'react'
 import Image from 'next/image'
 import CandleIcon from './CandleIcon'
-import { containsBlockedWords } from '@/lib/moderation'
+import { MAX_PRAYER_LENGTH } from '@/lib/moderation'
+
+const THANKS_MS = 5000
 
 export default function PrayerForm() {
   const [prayer, setPrayer] = useState('')
-  const [showThanks, setShowThanks] = useState(false)
-  const [isAnimating, setIsAnimating] = useState(false)
+  const [website, setWebsite] = useState('') // honeypot
+  const [phase, setPhase] = useState<'form' | 'sending' | 'thanks'>('form')
   const [error, setError] = useState('')
+  const resetTimer = useRef<number | null>(null)
+
+  useEffect(() => () => { if (resetTimer.current) window.clearTimeout(resetTimer.current) }, [])
+
+  const remaining = MAX_PRAYER_LENGTH - prayer.length
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault()
-    
-    if (containsBlockedWords(prayer)) {
-      setError('Please revise your prayer to remove inappropriate language.')
-      return
-    }
-    
+    const text = prayer.trim()
+    if (text.length === 0) { setError('Please type a prayer intention first.'); return }
+    if (text.length > MAX_PRAYER_LENGTH) { setError(`Please keep your prayer to ${MAX_PRAYER_LENGTH} characters.`); return }
+
     setError('')
-    setIsAnimating(true)
-    
+    setPhase('sending')
     try {
-      await fetch('/api/submit-prayer', {
+      const res = await fetch('/api/submit-prayer', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ prayer })
+        body: JSON.stringify({ prayer: text, website }),
       })
-      
-      setPrayer('')
-      setShowThanks(true)
-      setTimeout(() => {
-        setShowThanks(false)
-        setIsAnimating(false)
-      }, 3000)
-    } catch (err) {
-      console.error('Error:', err)
-      setIsAnimating(false)
+      if (res.ok) {
+        setPrayer('')
+        setPhase('thanks')
+        resetTimer.current = window.setTimeout(() => setPhase('form'), THANKS_MS)
+        return
+      }
+      const data = await res.json().catch(() => ({}))
+      setError(
+        res.status === 429
+          ? 'Please wait a moment and try again.'
+          : data.error || 'Something went wrong. Please try again.',
+      )
+      setPhase('form')
+    } catch {
+      setError('We could not reach the server. Please try again.')
+      setPhase('form')
     }
   }
 
   return (
-    <div
-      className="min-h-screen flex items-center justify-center bg-gradient-to-b from-slate-50 to-white p-4"
-      style={{
-        minHeight: '100vh',
-        height: 'auto',
-        WebkitBackfaceVisibility: 'hidden',
-        backfaceVisibility: 'hidden'
-      }}
-    >
-      <div 
-        className={`w-full max-w-lg transition-opacity duration-500 ${isAnimating ? 'opacity-0' : 'opacity-100'}`}
-        style={{
-          transform: 'translateZ(0)', // Force hardware acceleration
-          WebkitTransform: 'translateZ(0)'
-        }}
-      >
-        {showThanks ? (
-          <div className="text-center">
-            <Image
-              src="/images/Saint-Helen-Submark-Black.png"
-              alt="Saint Helen Logo"
-              width={400}
-              height={67}
-              className="w-auto h-16 mx-auto mb-6"
-              priority
-            />
-            <div className="flex justify-center mb-6">
-              <CandleIcon size="lg" />
-            </div>
-            <h2 className="text-3xl font-bold mb-4 text-blue-900">Prayer Received</h2>
-            <p className="text-slate-800">Your prayer has been added to our wall</p>
+    <div className="min-h-screen bg-paper px-4 py-10 text-ink" style={{ minHeight: '100vh' }}>
+      <div className="mx-auto w-full max-w-lg">
+        <div className="mb-8 text-center">
+          <Image
+            src="/images/Saint-Helen-Submark-Black.png"
+            alt="Saint Helen"
+            width={400}
+            height={67}
+            className="mx-auto mb-6 h-12 w-auto"
+            priority
+          />
+        </div>
+
+        {phase === 'thanks' ? (
+          <div className="rounded-[14px] border border-line bg-white px-8 py-12 text-center" role="status" aria-live="polite">
+            <CandleIcon size="lg" className="mx-auto mb-6" />
+            <h2 className="font-heading text-3xl font-bold text-navy">Thank you</h2>
+            <p className="mt-3 text-lg text-muted">
+              Your prayer has been received and will be shared with the parish.
+            </p>
           </div>
         ) : (
-          <div className="w-full">
-            <div className="text-center mb-8">
-              <Image
-                src="/images/Saint-Helen-Submark-Black.png"
-                alt="Saint Helen Logo"
-                width={400}
-                height={67}
-                className="w-auto h-16 mx-auto mb-6"
-                priority
-              />
-              <h1 className="text-3xl text-blue-900 font-bold mb-3">Share Your Prayer</h1>
-              <p className="text-slate-600 text-lg leading-relaxed max-w-md mx-auto">
-                Welcome to our parish prayer wall. Share your intentions with our community and know that you are held in prayer.
-              </p>
-            </div>
-            <form onSubmit={handleSubmit} className="space-y-6">
-              <div className="relative">
+          <div className="rounded-[14px] border border-line bg-white px-6 py-8 sm:px-8">
+            <p className="eyebrow mb-3 text-gold">Saint Helen</p>
+            <h1 className="font-heading text-3xl font-bold leading-tight text-navy">
+              Share your prayer intention
+            </h1>
+            <p className="mt-3 text-base leading-relaxed text-muted">
+              Your intention will be shown on the prayer wall in the church and held in prayer by our parish community.
+            </p>
+
+            <form onSubmit={handleSubmit} className="mt-6 space-y-4" noValidate>
+              <div>
+                <label htmlFor="prayer" className="sr-only">Prayer intention</label>
                 <textarea
+                  id="prayer"
                   value={prayer}
-                  onChange={(e) => setPrayer(e.target.value)}
-                  className="w-full h-40 p-4 text-xl border rounded-lg text-slate-800 border-slate-300 focus:border-blue-500 focus:ring-1 focus:ring-blue-500 transition-all duration-200"
-                  placeholder="Type your prayer intention..."
+                  onChange={e => setPrayer(e.target.value.slice(0, MAX_PRAYER_LENGTH))}
+                  maxLength={MAX_PRAYER_LENGTH}
                   required
-                  style={{
-                    fontSize: '18px',
-                    lineHeight: '1.5',
-                    WebkitAppearance: 'none',
-                    borderRadius: '12px',
-                    minHeight: '160px',
-                    resize: 'none',
-                    WebkitTapHighlightColor: 'transparent'
-                  }}
+                  disabled={phase === 'sending'}
+                  placeholder="For my mother, who is in the hospital…"
+                  className="w-full resize-none rounded-[12px] border border-line bg-white p-4 text-ink placeholder:text-muted/70 outline-none transition focus:border-navy focus:ring-[3px] focus:ring-navy/20"
+                  style={{ fontSize: '18px', lineHeight: '1.5', minHeight: '160px', WebkitAppearance: 'none', WebkitTapHighlightColor: 'transparent' }}
                 />
-                {error && (
-                  <p className="text-red-600 mt-2 text-center">{error}</p>
-                )}
+                <div className="mt-2 flex items-center justify-between text-sm">
+                  <span className={error ? 'text-rust-solid' : 'text-muted'} aria-live="polite">{error}</span>
+                  <span className={`tabular-nums ${remaining < 30 ? 'text-rust-solid' : 'text-muted'}`}>
+                    {remaining} left
+                  </span>
+                </div>
               </div>
+
+              {/* Honeypot: hidden from people, filled by bots. */}
+              <div className="absolute -left-[9999px] top-auto h-px w-px overflow-hidden" aria-hidden="true">
+                <label htmlFor="website">Website</label>
+                <input id="website" name="website" type="text" tabIndex={-1} autoComplete="off" value={website} onChange={e => setWebsite(e.target.value)} />
+              </div>
+
               <button
                 type="submit"
-                className="w-full bg-blue-900 text-white py-5 rounded-xl hover:bg-blue-800 transition-all duration-200 text-xl font-semibold active:bg-blue-950"
-                style={{
-                  WebkitTapHighlightColor: 'transparent',
-                  touchAction: 'manipulation',
-                  minHeight: '64px',
-                  WebkitAppearance: 'none'
-                }}
+                disabled={phase === 'sending'}
+                className="btn-primary w-full text-lg"
+                style={{ minHeight: '60px', WebkitTapHighlightColor: 'transparent', touchAction: 'manipulation' }}
               >
-                Submit Prayer
+                {phase === 'sending' ? 'Sending…' : 'Submit prayer'}
               </button>
-              <p className="text-center text-slate-500 text-sm mt-4">
-                Your prayer will be displayed on our parish prayer wall.
-              </p>
             </form>
+
+            <p className="mt-5 text-center text-sm text-muted">
+              Please do not include phone numbers or addresses. Intentions are reviewed before they appear.
+            </p>
           </div>
         )}
       </div>

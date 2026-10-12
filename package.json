@@ -7,14 +7,16 @@
     "build": "next build",
     "start": "next start",
     "lint": "next lint",
-    "migrate:supabase-to-neon": "node --env-file=.env.local scripts/migrate-supabase-to-neon.mjs"
+    "migrate:supabase-to-neon": "node --env-file=.env.local scripts/migrate-supabase-to-neon.mjs",
+    "migrate:moderation": "node --env-file=.env.local scripts/migrate-add-moderation.mjs"
   },
   "dependencies": {
+    "@anthropic-ai/sdk": "^0.133.0",
     "@neondatabase/serverless": "^0.10.4",
-    "@shadcn/ui": "^0.0.4",
     "next": "^15.5.9",
     "react": "^19.0.0",
-    "react-dom": "^19.0.0"
+    "react-dom": "^19.0.0",
+    "zod": "^4.6.6"
   },
   "devDependencies": {
     "@eslint/eslintrc": "^3",

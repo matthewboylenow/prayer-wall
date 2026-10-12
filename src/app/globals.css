@@ -3,172 +3,79 @@
 @tailwind utilities;
 
 :root {
-  --background: #FAF9F7;
-  --foreground: #1F346D;
-}
-
-@media (prefers-color-scheme: dark) {
-  :root {
-    --background: #0F1A38;
-    --foreground: #FAF9F7;
-  }
+  --sh-navy: #1F346D;
+  --sh-navy-deep: #16264F;
+  --sh-rust: #CD5334;
+  --sh-rust-solid: #B5452B;
+  --sh-gold: #D4AF37;
+  --sh-cream: #F2EFE8;
+  --sh-paper: #FAF9F7;
+  --sh-ink: #1F2430;
+  --sh-muted: #5B6272;
+  --sh-line: #E5E1D8;
 }
 
 body {
-  color: var(--foreground);
-  background: var(--background);
-  font-family: var(--font-libre-franklin), 'Libre Franklin', sans-serif;
-  /* iPad-specific fixes */
+  color: var(--sh-ink);
+  background: var(--sh-paper);
+  font-family: var(--font-libre-franklin), 'Libre Franklin', system-ui, sans-serif;
   -webkit-text-size-adjust: 100%;
   -webkit-font-smoothing: antialiased;
   -moz-osx-font-smoothing: grayscale;
-  /* Prevent zoom on input focus for iPad */
   touch-action: manipulation;
 }
 
 h1, h2, h3, h4, h5, h6 {
-  font-family: var(--font-libre-baskerville), 'Libre Baskerville', serif;
+  font-family: var(--font-libre-baskerville), 'Libre Baskerville', Georgia, serif;
 }
 
-/* ============================================
-   Liquid Glass Styling (Warm, Saint Helen)
-   ============================================ */
-
-.liquid-glass {
-  background: linear-gradient(
-    135deg,
-    rgba(250, 249, 247, 0.1) 0%,
-    rgba(212, 175, 55, 0.05) 50%,
-    rgba(250, 249, 247, 0.02) 100%
-  );
-  backdrop-filter: blur(20px) saturate(180%);
-  -webkit-backdrop-filter: blur(20px) saturate(180%);
-  border: 1px solid rgba(250, 249, 247, 0.12);
-  box-shadow:
-    0 8px 32px rgba(15, 26, 56, 0.4),
-    inset 0 1px 0 rgba(250, 249, 247, 0.1),
-    inset 0 -1px 0 rgba(15, 26, 56, 0.1);
-}
-
-.liquid-glass-header {
-  background: linear-gradient(
-    180deg,
-    rgba(250, 249, 247, 0.08) 0%,
-    rgba(31, 52, 109, 0.04) 100%
-  );
-  backdrop-filter: blur(24px) saturate(160%);
-  -webkit-backdrop-filter: blur(24px) saturate(160%);
-  box-shadow:
-    0 4px 24px rgba(15, 26, 56, 0.3),
-    inset 0 1px 0 rgba(250, 249, 247, 0.08);
-}
-
-/* Subtle highlight effect at top edge */
-.liquid-glass::before {
-  content: '';
-  position: absolute;
-  top: 0;
-  left: 0;
-  right: 0;
-  height: 1px;
-  background: linear-gradient(
-    90deg,
-    transparent 0%,
-    rgba(212, 175, 55, 0.25) 50%,
-    transparent 100%
-  );
-  pointer-events: none;
-}
-
-/* ============================================
-   Candle Animation Keyframes
-   ============================================ */
-
-@keyframes candle-flicker {
-  0%, 100% {
-    transform: scaleY(1) scaleX(1) rotate(0deg);
-    opacity: 1;
+/* Shared pieces, named after the ministries stylesheet on sainthelen.org. */
+@layer components {
+  .eyebrow {
+    @apply text-[13px] font-semibold uppercase tracking-[0.14em];
   }
-  25% {
-    transform: scaleY(1.02) scaleX(0.98) rotate(-0.5deg);
-    opacity: 0.95;
+  .btn-primary {
+    @apply inline-flex items-center justify-center gap-2 rounded-full border-2 border-rust-solid bg-rust-solid px-6 py-3 font-semibold text-white transition hover:border-rust-dark hover:bg-rust-dark focus-visible:outline focus-visible:outline-[3px] focus-visible:outline-offset-2 focus-visible:outline-gold disabled:opacity-60;
   }
-  50% {
-    transform: scaleY(0.98) scaleX(1.02) rotate(0.5deg);
-    opacity: 1;
+  .btn-ghost {
+    @apply inline-flex items-center justify-center gap-2 rounded-full border-2 border-navy/40 bg-transparent px-6 py-3 font-semibold text-navy transition hover:border-navy hover:bg-navy/5 focus-visible:outline focus-visible:outline-[3px] focus-visible:outline-offset-2 focus-visible:outline-gold disabled:opacity-60;
   }
-  75% {
-    transform: scaleY(1.01) scaleX(0.99) rotate(-0.3deg);
-    opacity: 0.97;
+  .btn-sm {
+    @apply px-4 py-2 text-sm;
+  }
+  .chip {
+    @apply inline-flex items-center rounded-full border border-line bg-white px-4 py-2 text-sm font-semibold text-navy transition hover:border-navy;
+  }
+  .chip-active {
+    @apply border-navy bg-navy text-white hover:border-navy;
+  }
+  .badge {
+    @apply rounded bg-[#FFF4D6] px-1.5 py-0.5 text-[11px] font-semibold uppercase tracking-[0.08em] text-[#6B4D00];
+  }
+  .badge-rust {
+    @apply bg-rust/15 text-rust-solid;
   }
 }
 
-@keyframes candle-glow {
-  0%, 100% {
-    opacity: 0.6;
-    transform: scale(2.5);
-  }
-  50% {
-    opacity: 0.8;
-    transform: scale(2.7);
-  }
-}
-
-.animate-candle-flicker {
-  animation: candle-flicker 3s ease-in-out infinite;
-  transform-origin: center bottom;
-}
-
-.animate-candle-glow {
-  animation: candle-glow 2s ease-in-out infinite;
-}
-
-/* ============================================
-   Page transition animations
-   ============================================ */
-
+/* Page transition for display cards */
 @keyframes fadeIn {
-  0% {
-    opacity: 0;
-    transform: translateY(16px) translateZ(0);
-  }
-  100% {
-    opacity: 1;
-    transform: translateY(0) translateZ(0);
-  }
+  0% { opacity: 0; transform: translateY(8px); }
+  100% { opacity: 1; transform: translateY(0); }
 }
 
 .animate-fadeIn {
-  animation: fadeIn 0.8s ease-out forwards;
-  -webkit-transform: translateZ(0);
-  transform: translateZ(0);
-  -webkit-backface-visibility: hidden;
-  backface-visibility: hidden;
+  animation: fadeIn 0.6s ease-out forwards;
 }
 
-/* ============================================
-   iPad-specific viewport fixes
-   ============================================ */
-
-@supports (-webkit-touch-callout: none) {
-  body {
-    height: 100%;
-    overflow-x: hidden;
-  }
-
-  .min-h-screen {
-    min-height: 100vh;
-    min-height: -webkit-fill-available;
-  }
+@media (prefers-reduced-motion: reduce) {
+  .animate-fadeIn { animation: none; opacity: 1; }
 }
 
-/* Prevent zoom on form inputs for iPad */
+/* iPad: keep inputs at 16px+ so Safari does not zoom on focus */
 @media screen and (max-device-width: 1024px) {
   input[type="text"],
-  input[type="email"],
   input[type="password"],
-  textarea,
-  select {
+  textarea {
     font-size: 16px !important;
   }
 }

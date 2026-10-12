@@ -1,310 +1,286 @@
 'use client'
-import React, { useState, useEffect, useRef } from 'react';
-import Image from 'next/image';
-import CandleIcon from './CandleIcon';
+import React, { useState, useEffect, useRef, useLayoutEffect } from 'react'
+import Image from 'next/image'
+import CandleIcon from './CandleIcon'
 
 interface Prayer {
-  id: string;
-  content: string;
-  created_at: string;
-  season?: string;
+  id: string
+  content: string
+  created_at: string
+  season?: string
 }
 
 interface PrayersResponse {
-  wall: Prayer[];
-  archiveSample: Prayer[];
-  totalWall: number;
-  totalArchive: number;
-  generatedAt: string;
+  wall: Prayer[]
+  archiveSample: Prayer[]
+  totalWall: number
+  totalArchive: number
+  generatedAt: string
 }
 
 const DISPLAY_CONFIG = {
-  prayersPerPage: 7,
   pageDisplayTime: 18000,
-  transitionDuration: 800,
-  refetchIntervalMs: 5 * 60 * 1000,
+  transitionDuration: 700,
+  refetchIntervalMs: 60 * 1000,
   instructionPageFrequency: 10,
   archiveWeight: 0.05,
-};
+  /** Height budget per card row; cards per page is derived from this. */
+  rowHeight: 215,
+  rowGap: 16,
+  /** Vertical space inside <main> that is not the grid: padding + eyebrow. */
+  mainChrome: 112,
+}
 
-type DisplayStrategy = 'wall' | 'archive' | 'instruction';
+type DisplayStrategy = 'wall' | 'archive' | 'instruction'
+
+/** Text size steps down for long prayers so nothing is ever clipped. */
+function prayerFontSize(content: string): number {
+  if (content.length > 220) return 20
+  if (content.length > 150) return 22
+  if (content.length > 80) return 24
+  return 27
+}
+
+function formatDate(iso: string): string {
+  const d = new Date(iso)
+  const date = d.toLocaleDateString('en-US', { month: 'long', day: 'numeric' })
+  const time = d.toLocaleTimeString('en-US', { hour: 'numeric', minute: '2-digit' })
+  return `${date} · ${time}`
+}
 
 export default function PrayerWallDisplay() {
-  const [wallPrayers, setWallPrayers] = useState<Prayer[]>([]);
-  const [archivePrayers, setArchivePrayers] = useState<Prayer[]>([]);
-  const [totalWall, setTotalWall] = useState(0);
-  const [totalArchive, setTotalArchive] = useState(0);
-  const [isLoading, setIsLoading] = useState(true);
-  const [currentPage, setCurrentPage] = useState(0);
-  const [displayStrategy, setDisplayStrategy] = useState<DisplayStrategy>('wall');
-  const [isVisible, setIsVisible] = useState(true);
+  const [wallPrayers, setWallPrayers] = useState<Prayer[]>([])
+  const [archivePrayers, setArchivePrayers] = useState<Prayer[]>([])
+  const [totalWall, setTotalWall] = useState(0)
+  const [totalArchive, setTotalArchive] = useState(0)
+  const [isLoading, setIsLoading] = useState(true)
+  const [currentPage, setCurrentPage] = useState(0)
+  const [displayStrategy, setDisplayStrategy] = useState<DisplayStrategy>('wall')
+  const [isVisible, setIsVisible] = useState(true)
+  const [layout, setLayout] = useState({ columns: 1, rows: 6 })
 
-  const pageCountRef = useRef(0);
-  const wallRef = useRef<Prayer[]>([]);
-  const archiveRef = useRef<Prayer[]>([]);
-  const wallPageRef = useRef(0);
+  const mainRef = useRef<HTMLElement>(null)
+  const pageCountRef = useRef(0)
+  const wallRef = useRef<Prayer[]>([])
+  const archiveRef = useRef<Prayer[]>([])
+  const wallPageRef = useRef(0)
+  const layoutRef = useRef(layout)
+  const newestIdRef = useRef<string | null>(null)
+  const jumpToFrontRef = useRef(false)
+
+  useEffect(() => { wallRef.current = wallPrayers }, [wallPrayers])
+  useEffect(() => { archiveRef.current = archivePrayers }, [archivePrayers])
+  useEffect(() => { layoutRef.current = layout }, [layout])
+
+  // Cards per page from the real size of the content area, so portrait and
+  // landscape screens are both filled and nothing is cut off. <main> is
+  // always rendered, so this measures on first paint.
+  useLayoutEffect(() => {
+    const el = mainRef.current
+    if (!el) return
+    const measure = () => {
+      const available = el.getBoundingClientRect().height - DISPLAY_CONFIG.mainChrome
+      const columns = window.innerWidth > window.innerHeight ? 2 : 1
+      const rows = Math.max(1, Math.floor((available + DISPLAY_CONFIG.rowGap) / (DISPLAY_CONFIG.rowHeight + DISPLAY_CONFIG.rowGap)))
+      setLayout(prev => (prev.columns === columns && prev.rows === rows ? prev : { columns, rows }))
+    }
+    measure()
+    const ro = new ResizeObserver(measure)
+    ro.observe(el)
+    window.addEventListener('resize', measure)
+    return () => { ro.disconnect(); window.removeEventListener('resize', measure) }
+  }, [])
 
   useEffect(() => {
-    wallRef.current = wallPrayers;
-  }, [wallPrayers]);
-
-  useEffect(() => {
-    archiveRef.current = archivePrayers;
-  }, [archivePrayers]);
-
-  useEffect(() => {
-    let cancelled = false;
+    let cancelled = false
     const fetchPrayers = async (initial: boolean) => {
       try {
-        const response = await fetch('/api/prayers', { cache: 'no-store' });
+        const response = await fetch('/api/prayers', { cache: 'no-store' })
         if (!response.ok) {
-          console.error('Failed to fetch prayers', response.status);
-          return;
+          console.error('Failed to fetch prayers', response.status)
+          return
         }
-        const data: PrayersResponse = await response.json();
-        if (cancelled) return;
-        setWallPrayers(data.wall);
-        setArchivePrayers(data.archiveSample);
-        setTotalWall(data.totalWall);
-        setTotalArchive(data.totalArchive);
+        const data: PrayersResponse = await response.json()
+        if (cancelled) return
+        const newestId = data.wall[0]?.id ?? null
+        if (!initial && newestId && newestId !== newestIdRef.current) {
+          // Someone just submitted a prayer. Show the front page next.
+          jumpToFrontRef.current = true
+        }
+        newestIdRef.current = newestId
+        setWallPrayers(data.wall)
+        setArchivePrayers(data.archiveSample)
+        setTotalWall(data.totalWall)
+        setTotalArchive(data.totalArchive)
+        if (initial && data.wall.length === 0) setDisplayStrategy('instruction')
       } catch (err) {
-        console.error('Error fetching prayers:', err);
+        console.error('Error fetching prayers:', err)
+        if (initial && !cancelled) setDisplayStrategy('instruction')
       } finally {
-        if (initial && !cancelled) setIsLoading(false);
+        if (initial && !cancelled) setIsLoading(false)
       }
-    };
+    }
 
-    fetchPrayers(true);
-    const interval = setInterval(() => fetchPrayers(false), DISPLAY_CONFIG.refetchIntervalMs);
-    return () => {
-      cancelled = true;
-      clearInterval(interval);
-    };
-  }, []);
+    fetchPrayers(true)
+    const interval = setInterval(() => fetchPrayers(false), DISPLAY_CONFIG.refetchIntervalMs)
+    return () => { cancelled = true; clearInterval(interval) }
+  }, [])
 
   useEffect(() => {
     const tick = () => {
-      setIsVisible(false);
+      setIsVisible(false)
 
       setTimeout(() => {
-        pageCountRef.current += 1;
-        const count = pageCountRef.current;
-        const wall = wallRef.current;
-        const archive = archiveRef.current;
-
-        if (count > 0 && count % DISPLAY_CONFIG.instructionPageFrequency === 0) {
-          setDisplayStrategy('instruction');
-          setCurrentPage(0);
-          setIsVisible(true);
-          return;
-        }
-
-        const wantArchive =
-          archive.length > 0 && Math.random() < DISPLAY_CONFIG.archiveWeight;
-
-        if (wantArchive) {
-          const maxPages = Math.max(1, Math.ceil(archive.length / DISPLAY_CONFIG.prayersPerPage));
-          setDisplayStrategy('archive');
-          setCurrentPage(Math.floor(Math.random() * maxPages));
-          setIsVisible(true);
-          return;
-        }
+        pageCountRef.current += 1
+        const count = pageCountRef.current
+        const wall = wallRef.current
+        const archive = archiveRef.current
+        const perPage = layoutRef.current.columns * layoutRef.current.rows
 
         if (wall.length === 0) {
-          setDisplayStrategy('instruction');
-          setCurrentPage(0);
-          setIsVisible(true);
-          return;
+          setDisplayStrategy('instruction')
+          setCurrentPage(0)
+          setIsVisible(true)
+          return
         }
 
-        const maxPages = Math.max(1, Math.ceil(wall.length / DISPLAY_CONFIG.prayersPerPage));
-        wallPageRef.current = (wallPageRef.current + 1) % maxPages;
-        setDisplayStrategy('wall');
-        setCurrentPage(wallPageRef.current);
-        setIsVisible(true);
-      }, DISPLAY_CONFIG.transitionDuration);
-    };
+        if (jumpToFrontRef.current) {
+          jumpToFrontRef.current = false
+          wallPageRef.current = 0
+          setDisplayStrategy('wall')
+          setCurrentPage(0)
+          setIsVisible(true)
+          return
+        }
 
-    const timer = setInterval(tick, DISPLAY_CONFIG.pageDisplayTime);
-    return () => clearInterval(timer);
-  }, []);
+        if (count % DISPLAY_CONFIG.instructionPageFrequency === 0) {
+          setDisplayStrategy('instruction')
+          setCurrentPage(0)
+          setIsVisible(true)
+          return
+        }
 
-  if (isLoading && wallPrayers.length === 0) {
-    return (
-      <div className="min-h-screen bg-gradient-to-br from-navy-dark via-navy to-navy-dark flex items-center justify-center">
-        <div className="text-center">
-          <Image
-            src="/images/Saint-Helen-Submark-White.png"
-            alt="Saint Helen Logo"
-            width={500}
-            height={84}
-            className="w-[500px] h-auto mx-auto mb-12"
-            priority
-          />
-          <div className="text-cream text-4xl font-heading animate-pulse">
-            Loading prayers...
-          </div>
-        </div>
-      </div>
-    );
-  }
+        if (archive.length > 0 && Math.random() < DISPLAY_CONFIG.archiveWeight) {
+          const maxPages = Math.max(1, Math.ceil(archive.length / perPage))
+          setDisplayStrategy('archive')
+          setCurrentPage(Math.floor(Math.random() * maxPages))
+          setIsVisible(true)
+          return
+        }
 
-  const InstructionPage = () => (
-    <div key="instruction-page" className="flex flex-col items-center justify-center h-full text-center px-12">
-      <div className="liquid-glass rounded-2xl shadow-xl p-12 max-w-3xl">
-        <h2 className="text-5xl font-bold text-cream font-heading mb-12">Submit Your Prayer Intention</h2>
-        <div className="space-y-8 text-2xl text-cream/90 font-body">
-          <p className="mb-8 text-3xl">
-            Use the iPad in the church to submit your prayer intention
-          </p>
-          <p className="text-gold text-3xl">
-            - or -
-          </p>
-          <p className="text-3xl">
-            Visit <span className="text-gold font-semibold">prayerwall.sainthelen.org</span><br />
-            on your mobile device
-          </p>
-          <div className="mt-12 flex justify-center">
-            <CandleIcon size="lg" />
-          </div>
-        </div>
+        const maxPages = Math.max(1, Math.ceil(wall.length / perPage))
+        wallPageRef.current = (wallPageRef.current + 1) % maxPages
+        setDisplayStrategy('wall')
+        setCurrentPage(wallPageRef.current)
+        setIsVisible(true)
+      }, DISPLAY_CONFIG.transitionDuration)
+    }
 
-        <div className="mt-8 pt-8 border-t border-cream/10">
-          <p className="text-cream/60 text-xl font-body">
-            {totalWall + totalArchive} prayers shared
-          </p>
-        </div>
-      </div>
-    </div>
-  );
+    const timer = setInterval(tick, DISPLAY_CONFIG.pageDisplayTime)
+    return () => clearInterval(timer)
+  }, [])
 
-  const getPrayersToDisplay = (): Prayer[] => {
-    if (displayStrategy === 'instruction') return [];
-    const source = displayStrategy === 'archive' ? archivePrayers : wallPrayers;
-    const startIndex = currentPage * DISPLAY_CONFIG.prayersPerPage;
-    return source.slice(startIndex, startIndex + DISPLAY_CONFIG.prayersPerPage);
-  };
+  const perPage = layout.columns * layout.rows
+  const source = displayStrategy === 'archive' ? archivePrayers : wallPrayers
+  const displayedPrayers =
+    displayStrategy === 'instruction'
+      ? []
+      : source.slice(currentPage * perPage, currentPage * perPage + perPage)
 
-  const displayedPrayers = getPrayersToDisplay();
-
-  const getRelativeTime = (dateString: string) => {
-    const date = new Date(dateString);
-    const now = new Date();
-    const diffInHours = Math.floor((now.getTime() - date.getTime()) / (1000 * 60 * 60));
-    const diffInDays = Math.floor(diffInHours / 24);
-
-    if (diffInHours < 1) return 'Just now';
-    if (diffInHours < 24) return `${diffInHours}h ago`;
-    if (diffInDays < 7) return `${diffInDays}d ago`;
-    if (diffInDays < 30) return `${Math.floor(diffInDays / 7)}w ago`;
-    if (diffInDays < 365) return `${Math.floor(diffInDays / 30)}mo ago`;
-    return `${Math.floor(diffInDays / 365)}y ago`;
-  };
-
-  const strategyInfo =
+  const eyebrow =
     displayStrategy === 'archive'
-      ? { label: 'From the Jubilee Year of Hope', color: 'bg-rust', textColor: 'text-rust-light' }
-      : displayStrategy === 'wall'
-        ? { label: 'Prayer Wall', color: 'bg-gold', textColor: 'text-gold' }
-        : { label: '', color: '', textColor: '' };
+      ? 'From the Jubilee Year of Hope · 2025'
+      : 'Prayer intentions of our parish'
 
   return (
-    <div
-      className="min-h-screen bg-gradient-to-br from-navy-dark via-navy to-navy-dark overflow-hidden"
-      style={{
-        height: '100vh',
-        width: '100vw',
-        transform: 'translate3d(0, 0, 0)',
-        WebkitFontSmoothing: 'antialiased'
-      }}
-    >
-      <header className="text-center py-8 liquid-glass-header border-b border-cream/10">
-        <div className="flex justify-center items-center gap-8 mb-6">
-          <Image
-            src="/images/Saint-Helen-Submark-White.png"
-            alt="Saint Helen Logo"
-            width={500}
-            height={84}
-            className="w-[500px] h-auto"
-            priority
-          />
-        </div>
-        <div className="flex items-center justify-center gap-4">
-          <h1 className="text-6xl font-bold text-cream font-heading">
-            Prayer Wall
-          </h1>
-          {displayStrategy !== 'instruction' && (
-            <div className="flex items-center gap-2">
-              <div className={`w-3 h-3 rounded-full ${strategyInfo.color}`}></div>
-              <span className={`text-xl font-body ${strategyInfo.textColor}`}>
-                {strategyInfo.label}
-              </span>
-            </div>
-          )}
-        </div>
+    <div className="flex h-screen w-screen flex-col overflow-hidden bg-navy-deep text-cream">
+      <header className="shrink-0 border-b border-white/10 px-12 pb-7 pt-9 text-center">
+        <Image
+          src="/images/Saint-Helen-Submark-White.png"
+          alt="Saint Helen"
+          width={500}
+          height={84}
+          className="mx-auto h-auto w-[380px]"
+          priority
+        />
+        <h1 className="mt-5 font-heading text-[56px] font-bold leading-none text-white">Prayer Wall</h1>
       </header>
 
-      <div
-        className="p-8 max-w-6xl mx-auto relative"
-        style={{ height: 'calc(100vh - 180px)' }}
-      >
-        {displayStrategy === 'instruction' ? (
+      <main ref={mainRef} className="flex min-h-0 flex-1 flex-col px-12 py-8">
+        {isLoading ? (
+          <p className="m-auto font-body text-3xl text-cream/70">Loading prayers…</p>
+        ) : displayStrategy === 'instruction' ? (
           <div
-            className="h-full transition-opacity ease-in-out"
-            style={{
-              opacity: isVisible ? 1 : 0,
-              transitionDuration: `${DISPLAY_CONFIG.transitionDuration}ms`,
-            }}
+            className="flex h-full items-center justify-center transition-opacity ease-in-out"
+            style={{ opacity: isVisible ? 1 : 0, transitionDuration: `${DISPLAY_CONFIG.transitionDuration}ms` }}
           >
-            <InstructionPage />
+            <InstructionPage total={totalWall + totalArchive} />
           </div>
         ) : (
           <div
-            className="space-y-6 transition-opacity ease-in-out"
-            style={{
-              opacity: isVisible ? 1 : 0,
-              transitionDuration: `${DISPLAY_CONFIG.transitionDuration}ms`,
-            }}
+            className="flex min-h-0 flex-1 flex-col transition-opacity ease-in-out"
+            style={{ opacity: isVisible ? 1 : 0, transitionDuration: `${DISPLAY_CONFIG.transitionDuration}ms` }}
           >
-            {displayedPrayers.map((prayer, index) => (
-              <div
-                key={`${prayer.id}-${currentPage}-${displayStrategy}`}
-                className="liquid-glass rounded-xl shadow-xl p-8 opacity-0 animate-fadeIn"
-                style={{
-                  animationDelay: `${index * 150}ms`,
-                  animationFillMode: 'forwards'
-                }}
-              >
-                <div className="flex items-start gap-6">
-                  <CandleIcon size="sm" />
-                  <div className="flex-1">
-                    <p className="text-xl text-cream leading-relaxed font-body">
-                      {prayer.content}
-                    </p>
-                    <div className="flex justify-between items-center mt-4">
-                      <p className="text-lg text-cream/40 font-body">
-                        {new Date(prayer.created_at).toLocaleDateString('en-US', {
-                          month: 'long',
-                          day: 'numeric',
-                          hour: 'numeric',
-                          minute: '2-digit'
-                        })}
-                      </p>
-                      <span className={`text-sm px-3 py-1 rounded-full font-body ${
-                        displayStrategy === 'archive'
-                          ? 'bg-rust/20 text-rust-light'
-                          : 'bg-gold/20 text-gold'
-                      }`}>
-                        {displayStrategy === 'archive' ? 'Jubilee 2025' : getRelativeTime(prayer.created_at)}
-                      </span>
-                    </div>
-                  </div>
-                </div>
-              </div>
-            ))}
+            <p className="eyebrow mb-5 shrink-0 text-center text-gold">{eyebrow}</p>
+            <div
+              className="grid min-h-0 flex-1"
+              style={{
+                gridTemplateColumns: `repeat(${layout.columns}, minmax(0, 1fr))`,
+                gridTemplateRows: `repeat(${layout.rows}, minmax(0, 1fr))`,
+                gap: DISPLAY_CONFIG.rowGap,
+              }}
+            >
+              {displayedPrayers.map((prayer, index) => (
+                <article
+                  key={`${prayer.id}-${currentPage}-${displayStrategy}`}
+                  className="flex min-h-0 flex-col justify-center overflow-hidden rounded-[14px] border border-line bg-paper px-8 py-5 text-ink opacity-0 animate-fadeIn"
+                  style={{ animationDelay: `${index * 90}ms`, animationFillMode: 'forwards' }}
+                >
+                  <p
+                    className="font-heading leading-[1.45]"
+                    style={{
+                      fontSize: prayerFontSize(prayer.content),
+                      display: '-webkit-box',
+                      WebkitLineClamp: 6,
+                      WebkitBoxOrient: 'vertical',
+                      overflow: 'hidden',
+                    }}
+                  >
+                    {prayer.content}
+                  </p>
+                  <p className="mt-2 font-body text-[16px] text-muted">{formatDate(prayer.created_at)}</p>
+                </article>
+              ))}
+            </div>
           </div>
         )}
-      </div>
+      </main>
+
+      <footer className="shrink-0 border-t border-white/10 px-12 py-5 text-center font-body text-[22px] text-cream/70">
+        Share your intention at <span className="font-semibold text-white">prayerwall.sainthelen.org</span> or on the iPad in the church
+      </footer>
     </div>
-  );
+  )
+}
+
+function InstructionPage({ total }: { total: number }) {
+  return (
+    <div className="w-full max-w-3xl rounded-[14px] border border-line bg-paper px-14 py-14 text-center text-ink">
+      <CandleIcon size="lg" className="mx-auto mb-8" />
+      <p className="eyebrow mb-4 text-gold">Saint Helen</p>
+      <h2 className="font-heading text-[44px] font-bold leading-tight text-navy">
+        Share your prayer intention
+      </h2>
+      <p className="mx-auto mt-6 max-w-xl font-body text-[26px] leading-relaxed text-ink/80">
+        Use the iPad in the church, or visit
+      </p>
+      <p className="mt-2 font-body text-[30px] font-semibold text-rust-solid">prayerwall.sainthelen.org</p>
+      <p className="mt-4 font-body text-[26px] leading-relaxed text-ink/80">on your phone.</p>
+      {total > 0 && (
+        <p className="mt-10 border-t border-line pt-6 font-body text-[20px] text-muted">
+          {total.toLocaleString('en-US')} prayers shared by our parish
+        </p>
+      )}
+    </div>
+  )
 }

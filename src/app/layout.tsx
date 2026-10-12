@@ -17,8 +17,8 @@ const libreFranklin = Libre_Franklin({
 })
 
 export const metadata: Metadata = {
-  title: 'Saint Helen Prayer Wall: Submit Prayer',
-  description: 'Share your prayer intentions with our community',
+  title: 'Saint Helen Prayer Wall',
+  description: 'Share your prayer intentions with the Saint Helen community.',
 }
 
 export default function RootLayout({

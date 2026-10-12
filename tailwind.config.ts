@@ -1,5 +1,7 @@
 import type { Config } from "tailwindcss";
 
+// Colour tokens mirror the Saint Helen ministries stylesheet on sainthelen.org
+// so the prayer wall reads as part of the same family.
 export default {
   content: [
     "./src/pages/**/*.{js,ts,jsx,tsx,mdx}",
@@ -9,29 +11,26 @@ export default {
   theme: {
     extend: {
       colors: {
-        background: "var(--background)",
-        foreground: "var(--foreground)",
         navy: {
           DEFAULT: '#1F346D',
-          dark: '#0F1A38',
-          light: '#2A4490',
+          deep: '#16264F',
+          light: '#2A4A8F',
         },
         rust: {
           DEFAULT: '#CD5334',
-          light: '#D97355',
+          solid: '#B5452B',
+          dark: '#9C3A23',
         },
-        cream: {
-          DEFAULT: '#FAF9F7',
-          dark: '#EDE9E3',
-        },
-        gold: {
-          DEFAULT: '#D4AF37',
-          light: '#E5C75E',
-        },
+        gold: '#D4AF37',
+        cream: '#F2EFE8',
+        paper: '#FAF9F7',
+        ink: '#1F2430',
+        muted: '#5B6272',
+        line: '#E5E1D8',
       },
       fontFamily: {
-        heading: ['var(--font-libre-baskerville)', 'Libre Baskerville', 'serif'],
-        body: ['var(--font-libre-franklin)', 'Libre Franklin', 'sans-serif'],
+        heading: ['var(--font-libre-baskerville)', 'Libre Baskerville', 'Georgia', 'serif'],
+        body: ['var(--font-libre-franklin)', 'Libre Franklin', 'system-ui', 'sans-serif'],
       },
     },
   },
